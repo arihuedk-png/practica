@@ -1,0 +1,18 @@
+{
+  "name": "mi-tienda",
+  "version": "1.0.0",
+  "description": "Tienda en línea con catálogo, carrito, pedidos por WhatsApp, pago con Mercado Pago, cuentas de usuario y panel de administración.",
+  "main": "server.js",
+  "private": true,
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "express": "^5.2.1"
+  }
+}
