@@ -184,7 +184,10 @@ async function cargarPedidos({ silencioso = false } = {}) {
   }
   panel.pendientesVistos = resumen.pendientes;
   if (!silencioso) avisarSiFaltaCobro().catch(() => {});
-  const sinResultados = $('#pedidosEstado').value === 'pendiente' ? 'No hay pedidos esperando aprobación.' : 'No hay pedidos con ese filtro.';
+  const sinResultados = {
+    'por-resolver': 'Nada por resolver: no hay pedidos para aprobar ni pagos para confirmar.',
+    pendiente: 'No hay pedidos esperando aprobación.',
+  }[$('#pedidosEstado').value] || 'No hay pedidos con ese filtro.';
   $('#pedidosLista').innerHTML = pedidos.length ? pedidos.map(pedidoHtml).join('') : vacio(sinResultados);
 }
 
@@ -219,7 +222,7 @@ $('#pedidosLista').addEventListener('click', async (e) => {
   try {
     await api(`/api/admin/pedidos/${boton.dataset.id}/${accion}`, { method: 'POST', body });
     const avisos = {
-      aprobar: 'Aprobado. Avisale por WhatsApp para que pague.',
+      aprobar: 'Aprobado. Avisale por WhatsApp; cuando te pague, tocá "Marcar pagado".',
       rechazar: 'Rechazado. Podés avisarle por WhatsApp.',
       pagado: 'Marcado como pagado.',
       pendiente: 'Volvió a pendiente.',

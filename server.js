@@ -521,11 +521,15 @@ const SQL_PEDIDOS = `
 const vistaAdmin = (p) => ({ ...p, items: itemsDe(p.id) });
 
 admin.get('/pedidos', (req, res) => {
-  const estado = ESTADOS.includes(req.query.estado) ? req.query.estado : '';
+  // "por-resolver" = los que necesitan algo del dueño: aprobar (pendientes) o confirmar el pago (aprobados).
+  const estado = ESTADOS.includes(req.query.estado) || req.query.estado === 'por-resolver' ? req.query.estado : '';
   const eventoId = id(req.query.evento_id);
   const filas = all(
-    `${SQL_PEDIDOS} WHERE (? = '' OR p.estado = ?) AND (? = 0 OR p.evento_id = ?) ORDER BY p.id DESC`,
-    estado, estado, eventoId, eventoId,
+    `${SQL_PEDIDOS}
+     WHERE (? = '' OR p.estado = ? OR (? = 'por-resolver' AND p.estado IN ('pendiente', 'aprobado')))
+       AND (? = 0 OR p.evento_id = ?)
+     ORDER BY p.estado = 'aprobado', p.id DESC`,
+    estado, estado, estado, eventoId, eventoId,
   );
   const pedidos = filtrar(filas, req.query.q, ['cliente_nombre', 'instagram', 'telefono', 'codigo', 'rrpp_nombre'])
     .slice(0, 2000)

@@ -249,6 +249,10 @@ test('el dueño aprueba y se habilita el pago por transferencia; después marca 
   assert.equal((await admin(`/api/admin/pedidos/${pedido.id}/aprobar`, { method: 'POST', body: {} })).body.pedido.estado, 'aprobado');
   assert.equal((await admin(`/api/admin/pedidos/${pedido.id}/aprobar`, { method: 'POST', body: {} })).status, 409);
 
+  const porResolver = (await admin('/api/admin/pedidos?estado=por-resolver')).body.pedidos;
+  assert.ok(porResolver.some((p) => p.id === pedido.id && p.estado === 'aprobado'), 'el aprobado sigue a la vista para marcarlo pagado');
+  assert.ok(porResolver.every((p) => ['pendiente', 'aprobado'].includes(p.estado)));
+
   let vista = await ver();
   assert.equal(vista.estado, 'aprobado');
   assert.deepEqual(vista.pago, { mercadopago: null, transferencia: { alias: 'medianoche.mp', cbu: '', titular: 'Medianoche SRL' } });
