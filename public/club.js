@@ -191,7 +191,8 @@ for (const campo of CAMPOS.filter((c) => c !== 'consentimiento')) {
   const input = $(`#${campo}`);
   const revisar = () => errorDeCampo(campo, validar().errores?.[campo]);
   input.addEventListener('blur', () => {
-    if (!vacio(campo)) revisar();
+    // Se espera un momento para que un toque en "Registrarme" llegue antes de que el aviso mueva el botón.
+    if (!vacio(campo)) setTimeout(revisar, 200);
   });
   input.addEventListener('input', () => {
     if (input.classList.contains('invalid')) revisar();
