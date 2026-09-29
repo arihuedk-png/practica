@@ -12,10 +12,11 @@
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="club.css">
   <style>
-    .panel { max-width: 960px; margin: 0 auto; padding: 16px 16px calc(40px + env(safe-area-inset-bottom, 0px)); display: grid; grid-template-columns: minmax(0, 1fr); gap: 18px; }
+    .panel { position: relative; z-index: 1; max-width: 960px; margin: 0 auto; padding: 16px 16px calc(40px + env(safe-area-inset-bottom, 0px)); display: grid; grid-template-columns: minmax(0, 1fr); gap: 18px; }
+    .panel > * { min-width: 0; }
+    .seccion { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; }
     .bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
     .bar .logo { font-size: 2rem; margin: 0; flex: 1; min-width: 0; }
-    .panel { position: relative; z-index: 1; }
     .stat b, .tabs button, .chip { font-family: var(--font-mono); }
     .stat, .item, .card { background: var(--ink-2); }
     .tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); overflow-x: auto; }
@@ -24,45 +25,64 @@
       color: var(--muted); font-size: .72rem; letter-spacing: .2em; text-transform: uppercase; white-space: nowrap;
     }
     .tabs button[aria-selected="true"] { color: var(--text); border-color: var(--text); }
+    .tab-count {
+      display: inline-grid; place-items: center; min-width: 18px; height: 18px; padding: 0 5px; margin-left: 6px;
+      border-radius: 999px; background: var(--signal); color: #fff; font-size: .62rem; letter-spacing: 0;
+    }
     .toolbar { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
     .toolbar > .field { flex: 1 1 200px; width: auto; min-width: 0; max-width: 100%; }
-    .panel > * { min-width: 0; }
     .toolbar .btn { width: auto; }
+    .toolbar a.btn { text-decoration: none; }
     .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
-    .stat { border: 1px solid var(--line); border-radius: 8px; padding: 12px; }
-    .stat b { display: block; font-size: 1.6rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+    .stat { border: 1px solid var(--line); border-radius: 8px; padding: 12px; min-width: 0; }
+    .stat b { display: block; font-size: 1.5rem; font-weight: 500; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
     .stat span { font-size: .68rem; letter-spacing: .18em; text-transform: uppercase; color: var(--muted); }
     .rows { display: grid; gap: 8px; }
     .item {
-      display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; align-items: center;
+      display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px 12px; align-items: center;
       border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px;
     }
-    .item.in { border-color: rgba(143, 199, 154, .45); background: rgba(143, 199, 154, .06); }
+    .item.in { border-color: rgba(127, 212, 154, .45); }
+    .item.pedido { align-items: start; }
+    .item.pedido.estado-pendiente { border-left: 3px solid var(--warn); }
+    .item a { color: var(--text); }
     .item-main { min-width: 0; }
     .item-title { font-weight: 600; margin: 0; overflow-wrap: anywhere; }
     .item-sub { color: var(--muted); font-size: .84rem; margin: 2px 0 0; overflow-wrap: anywhere; }
     .item-actions { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
-    .mono { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; letter-spacing: .12em; color: var(--text); }
-    .chip { font-size: .68rem; letter-spacing: .14em; text-transform: uppercase; border: 1px solid var(--line); border-radius: 999px; padding: 2px 8px; color: var(--muted); }
-    .chip.on { color: var(--ok); border-color: rgba(143, 199, 154, .5); }
-    .small { width: auto; padding: 8px 12px; font-size: .85rem; }
-    .danger { color: var(--bad); border-color: rgba(227, 154, 143, .4); }
+    .item-actions a.btn { text-decoration: none; }
+    .item .lines { margin-top: 10px; }
+    .item .lines-total { margin-top: 10px; }
+    .chip { font-size: .66rem; letter-spacing: .12em; text-transform: uppercase; border: 1px solid var(--line); border-radius: 999px; padding: 2px 8px; color: var(--muted); white-space: nowrap; }
+    .chip.on, .chip.estado-pagado { color: var(--ok); border-color: rgba(127, 212, 154, .5); }
+    .chip.estado-pendiente { color: var(--warn); border-color: rgba(242, 193, 78, .5); }
+    .chip.estado-aprobado { color: var(--text); border-color: var(--line-strong); }
+    .chip.estado-rechazado { color: var(--faint); }
+    .small { width: auto; padding: 8px 12px; font-size: .72rem; }
+    .danger { color: var(--bad); border-color: rgba(255, 138, 128, .4); }
     .card { border: 1px solid var(--line); border-radius: 10px; padding: 18px; display: grid; gap: 14px; }
     .card h2 { margin: 0; font-size: 1rem; font-weight: 600; }
+    .card h3 {
+      margin: 6px 0 0; padding-top: 14px; border-top: 1px solid var(--line);
+      font-family: var(--font-mono); font-size: .68rem; font-weight: 500; letter-spacing: .2em; text-transform: uppercase; color: var(--muted);
+    }
+    .hint { color: var(--faint); font-size: .8rem; margin: 6px 0 0; }
     .check { display: flex; gap: 10px; align-items: center; font-size: .92rem; }
     .check input { width: 18px; height: 18px; accent-color: var(--text); }
     .empty { color: var(--muted); text-align: center; padding: 28px 0; margin: 0; }
     .toast {
       position: fixed; left: 50%; bottom: calc(20px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%);
       background: var(--text); color: var(--ink); padding: 10px 16px; border-radius: 6px; font-size: .9rem; z-index: 10;
+      max-width: calc(100vw - 32px);
     }
     textarea.field { min-height: 80px; resize: vertical; }
+    textarea#stConsentimiento { min-height: 220px; font-size: .85rem; line-height: 1.5; }
     @media (max-width: 560px) {
-      .item { grid-template-columns: 1fr; }
+      .item { grid-template-columns: minmax(0, 1fr); }
       .item-actions { justify-content: flex-start; }
       .stats { gap: 6px; }
       .stat { padding: 10px; }
-      .stat b { font-size: 1.3rem; }
+      .stat b { font-size: 1.1rem; }
     }
   </style>
 </head>
@@ -70,8 +90,8 @@
   <!-- Ingreso al panel -->
   <main class="wrap" id="loginView" hidden>
     <section class="column fade-in">
+      <p class="kicker">Panel</p>
       <h1 class="logo logo-sm" data-club-name></h1>
-      <p class="lead">Panel de la lista</p>
       <form id="loginForm" class="column">
         <input class="field" type="password" id="password" placeholder="Contraseña" aria-label="Contraseña" autocomplete="current-password" required>
         <button class="btn" type="submit">Entrar</button>
@@ -87,121 +107,241 @@
     </header>
 
     <nav class="tabs" role="tablist">
-      <button role="tab" data-tab="list" aria-selected="true">Lista</button>
-      <button role="tab" data-tab="events" aria-selected="false">Fiestas</button>
-      <button role="tab" data-tab="codes" aria-selected="false">Códigos</button>
-      <button role="tab" data-tab="settings" aria-selected="false">Ajustes</button>
+      <button role="tab" data-tab="pedidos" aria-selected="true">Pedidos<span class="tab-count" id="tabPendientes" hidden></span></button>
+      <button role="tab" data-tab="productos" aria-selected="false">Productos</button>
+      <button role="tab" data-tab="rrpp" aria-selected="false">RRPP</button>
+      <button role="tab" data-tab="listas" aria-selected="false">Listas</button>
+      <button role="tab" data-tab="clientes" aria-selected="false">Clientes</button>
+      <button role="tab" data-tab="eventos" aria-selected="false">Fiestas</button>
+      <button role="tab" data-tab="ajustes" aria-selected="false">Ajustes</button>
     </nav>
 
-    <!-- Lista / puerta -->
-    <section data-panel="list" class="column" style="max-width:none">
-      <div class="toolbar">
-        <select class="field" id="listEvent" aria-label="Fiesta"></select>
-        <a class="btn btn-ghost small" id="exportBtn" href="#">Exportar CSV</a>
+    <!-- Pedidos -->
+    <section data-panel="pedidos" class="seccion">
+      <div class="banner" id="avisoCobro" hidden>
+        <span>Todavía no cargaste cómo cobrar: los pedidos que apruebes no van a tener datos de pago.</span>
+        <button class="link-btn" type="button">Ir a Ajustes</button>
       </div>
-      <div class="stats" id="listStats"></div>
-      <input class="field" type="search" id="listSearch" placeholder="Buscar por nombre, DNI o código de ingreso" aria-label="Buscar en la lista">
-      <div class="rows" id="entries"></div>
+      <div class="toolbar">
+        <select class="field" id="pedidosEstado" aria-label="Estado">
+          <option value="pendiente">Pendientes de aprobación</option>
+          <option value="aprobado">Aprobados (falta pagar)</option>
+          <option value="pagado">Pagados</option>
+          <option value="rechazado">Rechazados</option>
+          <option value="">Todos</option>
+        </select>
+        <select class="field" id="pedidosEvento" aria-label="Fiesta"></select>
+      </div>
+      <div class="stats" id="pedidosResumen"></div>
+      <input class="field" type="search" id="pedidosBuscar" placeholder="Buscar por nombre, Instagram, teléfono, código o RRPP" aria-label="Buscar pedidos">
+      <div class="rows" id="pedidosLista"></div>
+    </section>
+
+    <!-- Productos -->
+    <section data-panel="productos" class="seccion" hidden>
+      <form class="card" id="recargoForm">
+        <h2>Recargo por producto</h2>
+        <div class="toolbar">
+          <input class="field" id="recargo" inputmode="numeric" aria-label="Recargo en pesos" aria-describedby="recargoAyuda">
+          <button class="btn small" type="submit">Guardar recargo</button>
+        </div>
+        <p class="hint" id="recargoAyuda">Se suma a cada unidad que se pide (2 entradas = 2 recargos). Los pedidos ya hechos mantienen el recargo que tenían.</p>
+      </form>
+
+      <form class="card" id="productoForm">
+        <h2 id="productoTitulo">Nuevo producto</h2>
+        <div>
+          <label class="lbl" for="pNombre">Nombre</label>
+          <input class="field" id="pNombre" maxlength="60" required placeholder="Ej.: Entrada VIP">
+        </div>
+        <div>
+          <label class="lbl" for="pDescripcion">Descripción (opcional)</label>
+          <input class="field" id="pDescripcion" maxlength="200" placeholder="Ej.: Ingreso por fila rápida">
+        </div>
+        <div class="row2">
+          <div>
+            <label class="lbl" for="pPrecio">Precio (sin recargo)</label>
+            <input class="field" id="pPrecio" inputmode="numeric" placeholder="15.000" required>
+          </div>
+          <div>
+            <label class="lbl" for="pOrden">Orden en el catálogo</label>
+            <input class="field" id="pOrden" type="number" step="1" value="0">
+          </div>
+        </div>
+        <p class="hint" id="pVistaPrevia"></p>
+        <label class="check"><input type="checkbox" id="pActivo" checked> Visible en el catálogo</label>
+        <div class="toolbar">
+          <button class="btn small" type="submit">Guardar producto</button>
+          <button class="btn btn-ghost small" type="button" id="productoCancelar" hidden>Cancelar</button>
+        </div>
+        <p class="message" id="productoMessage"></p>
+      </form>
+      <div class="rows" id="productosLista"></div>
+    </section>
+
+    <!-- RRPP -->
+    <section data-panel="rrpp" class="seccion" hidden>
+      <form class="card" id="rrppForm">
+        <h2 id="rrppTitulo">Nuevo RRPP</h2>
+        <div class="row2">
+          <div>
+            <label class="lbl" for="rNombre">Nombre</label>
+            <input class="field" id="rNombre" maxlength="60" required placeholder="Ej.: Juli">
+          </div>
+          <div>
+            <label class="lbl" for="rCodigo">Código</label>
+            <input class="field mono" id="rCodigo" maxlength="30" required autocapitalize="characters" spellcheck="false" placeholder="JULI">
+          </div>
+        </div>
+        <p class="hint">Es el código que el RRPP pasa de boca en boca. Sin espacios; no importan las mayúsculas ni las tildes. Quien entra con ese código queda en su lista.</p>
+        <label class="check"><input type="checkbox" id="rActivo" checked> Activo (el código funciona)</label>
+        <div class="toolbar">
+          <button class="btn small" type="submit">Guardar RRPP</button>
+          <button class="btn btn-ghost small" type="button" id="rrppCancelar" hidden>Cancelar</button>
+        </div>
+        <p class="message" id="rrppMessage"></p>
+      </form>
+      <div class="rows" id="rrppLista"></div>
+    </section>
+
+    <!-- Listas de cada RRPP -->
+    <section data-panel="listas" class="seccion" hidden>
+      <div class="toolbar">
+        <select class="field" id="listasRrpp" aria-label="RRPP"></select>
+        <select class="field" id="listasEvento" aria-label="Fiesta"></select>
+        <a class="btn btn-ghost small" id="listasCsv" href="#">Exportar CSV</a>
+      </div>
+      <div class="stats" id="listasResumen"></div>
+      <input class="field" type="search" id="listasBuscar" placeholder="Buscar por nombre, Instagram o teléfono" aria-label="Buscar en la lista">
+      <div class="rows" id="listasLista"></div>
+    </section>
+
+    <!-- Clientes -->
+    <section data-panel="clientes" class="seccion" hidden>
+      <div class="toolbar">
+        <select class="field" id="clientesMes" aria-label="Mes de cumpleaños"></select>
+        <button class="btn btn-ghost small" type="button" id="cumplesDelMes">Cumpleaños de este mes</button>
+        <a class="btn btn-ghost small" id="clientesCsv" href="#">Exportar CSV</a>
+      </div>
+      <input class="field" type="search" id="clientesBuscar" placeholder="Buscar por nombre, Instagram, teléfono o RRPP" aria-label="Buscar clientes">
+      <p class="item-sub" id="clientesTotal"></p>
+      <div class="rows" id="clientesLista"></div>
     </section>
 
     <!-- Fiestas -->
-    <section data-panel="events" class="column" style="max-width:none" hidden>
-      <form class="card" id="eventForm">
-        <h2 id="eventFormTitle">Nueva fiesta</h2>
+    <section data-panel="eventos" class="seccion" hidden>
+      <form class="card" id="eventoForm">
+        <h2 id="eventoTitulo">Nueva fiesta</h2>
         <div>
-          <label class="lbl" for="evName">Nombre</label>
-          <input class="field" id="evName" maxlength="80" required>
+          <label class="lbl" for="eNombre">Nombre</label>
+          <input class="field" id="eNombre" maxlength="80" required>
         </div>
         <div class="row2">
           <div>
-            <label class="lbl" for="evDate">Fecha y hora</label>
-            <input class="field" id="evDate" type="datetime-local" required>
+            <label class="lbl" for="eFecha">Fecha y hora</label>
+            <input class="field" id="eFecha" type="datetime-local" required>
           </div>
           <div>
-            <label class="lbl" for="evCapacity">Cupo (0 = sin límite)</label>
-            <input class="field" id="evCapacity" type="number" min="0" value="200">
+            <label class="lbl" for="eCupo">Cupo de registros (0 = sin límite)</label>
+            <input class="field" id="eCupo" type="number" min="0" step="1" value="0">
           </div>
         </div>
         <div>
-          <label class="lbl" for="evDesc">Descripción</label>
-          <textarea class="field" id="evDesc" maxlength="600" placeholder="Dress code, horario de lista, line up…"></textarea>
+          <label class="lbl" for="eDescripcion">Descripción</label>
+          <textarea class="field" id="eDescripcion" maxlength="600" placeholder="Dress code, horario, line up…"></textarea>
         </div>
         <div>
-          <label class="lbl" for="evAddress">Dirección (solo la ve quien queda en lista)</label>
-          <input class="field" id="evAddress" maxlength="200">
+          <label class="lbl" for="eDireccion">Dirección (solo la ve quien pagó)</label>
+          <input class="field" id="eDireccion" maxlength="200">
         </div>
-        <label class="check"><input type="checkbox" id="evOpen" checked> Lista abierta</label>
+        <label class="check"><input type="checkbox" id="eAbierto" checked> Abierta: se pueden registrar y pedir</label>
         <div class="toolbar">
           <button class="btn small" type="submit">Guardar fiesta</button>
-          <button class="btn btn-ghost small" type="button" id="eventCancel" hidden>Cancelar</button>
+          <button class="btn btn-ghost small" type="button" id="eventoCancelar" hidden>Cancelar</button>
         </div>
-        <p class="message" id="eventMessage"></p>
+        <p class="message" id="eventoMessage"></p>
       </form>
-      <div class="rows" id="eventRows"></div>
-    </section>
-
-    <!-- Códigos -->
-    <section data-panel="codes" class="column" style="max-width:none" hidden>
-      <form class="card" id="codeForm">
-        <h2 id="codeFormTitle">Nuevo código</h2>
-        <div class="row2">
-          <div>
-            <label class="lbl" for="cdCode">Código</label>
-            <input class="field mono" id="cdCode" maxlength="30" required autocapitalize="characters" spellcheck="false">
-          </div>
-          <div>
-            <label class="lbl" for="cdLabel">De quién es</label>
-            <input class="field" id="cdLabel" maxlength="60" placeholder="Ej.: RRPP Juli">
-          </div>
-        </div>
-        <div>
-          <label class="lbl" for="cdMax">Usos máximos (0 = sin límite)</label>
-          <input class="field" id="cdMax" type="number" min="0" value="0">
-        </div>
-        <label class="check"><input type="checkbox" id="cdActive" checked> Activo</label>
-        <div class="toolbar">
-          <button class="btn small" type="submit">Guardar código</button>
-          <button class="btn btn-ghost small" type="button" id="codeCancel" hidden>Cancelar</button>
-        </div>
-        <p class="message" id="codeMessage"></p>
-      </form>
-      <div class="rows" id="codeRows"></div>
+      <div class="rows" id="eventosLista"></div>
     </section>
 
     <!-- Ajustes -->
-    <section data-panel="settings" class="column" style="max-width:none" hidden>
-      <form class="card" id="settingsForm">
+    <section data-panel="ajustes" class="seccion" hidden>
+      <form class="card" id="ajustesForm">
+        <h2>Ajustes</h2>
+        <h3>La puerta</h3>
         <div>
-          <label class="lbl" for="stClub">Nombre del lugar</label>
-          <input class="field" id="stClub" name="clubName" maxlength="40">
+          <label class="lbl" for="stNombre">Nombre del lugar</label>
+          <input class="field" id="stNombre" name="nombre_lugar" maxlength="40">
         </div>
         <div>
-          <label class="lbl" for="stLine1">Texto de la puerta (línea 1)</label>
-          <input class="field" id="stLine1" name="gateLine1" maxlength="140">
+          <label class="lbl" for="stLinea1">Texto de la puerta (línea 1)</label>
+          <input class="field" id="stLinea1" name="texto_puerta_1" maxlength="140">
         </div>
         <div>
-          <label class="lbl" for="stLine2">Texto de la puerta (línea 2)</label>
-          <input class="field" id="stLine2" name="gateLine2" maxlength="140">
+          <label class="lbl" for="stLinea2">Texto de la puerta (línea 2)</label>
+          <input class="field" id="stLinea2" name="texto_puerta_2" maxlength="140">
         </div>
         <div class="row2">
           <div>
-            <label class="lbl" for="stFooter">Texto de abajo</label>
-            <input class="field" id="stFooter" name="footer" maxlength="140">
+            <label class="lbl" for="stPie">Texto de abajo</label>
+            <input class="field" id="stPie" name="texto_pie" maxlength="140">
           </div>
           <div>
-            <label class="lbl" for="stIg">Instagram</label>
-            <input class="field" id="stIg" name="instagram" maxlength="40" placeholder="usuario">
+            <label class="lbl" for="stEdad">Edad mínima</label>
+            <input class="field" id="stEdad" name="edad_minima" type="number" min="0" max="99">
+          </div>
+        </div>
+        <label class="check"><input type="checkbox" id="stSinRrpp" name="permitir_sin_rrpp"> Mostrar "No tengo código" (entrar sin RRPP)</label>
+
+        <h3>Cobros</h3>
+        <div>
+          <label class="lbl" for="stMetodo">Cómo se paga un pedido aprobado</label>
+          <select class="field" id="stMetodo" name="metodo_pago">
+            <option value="transferencia">Transferencia</option>
+            <option value="mercadopago">Mercado Pago</option>
+            <option value="ambos">Mercado Pago o transferencia</option>
+          </select>
+          <p class="hint" id="mpEstado"></p>
+        </div>
+        <div class="row2">
+          <div>
+            <label class="lbl" for="stAlias">Alias</label>
+            <input class="field" id="stAlias" name="transferencia_alias" maxlength="20" autocapitalize="none" spellcheck="false">
+          </div>
+          <div>
+            <label class="lbl" for="stCbu">CBU / CVU</label>
+            <input class="field" id="stCbu" name="transferencia_cbu" inputmode="numeric" maxlength="26">
           </div>
         </div>
         <div>
-          <label class="lbl" for="stAge">Edad mínima</label>
-          <input class="field" id="stAge" name="minAge" type="number" min="0" max="99">
+          <label class="lbl" for="stTitular">Titular de la cuenta</label>
+          <input class="field" id="stTitular" name="transferencia_titular" maxlength="80">
+        </div>
+        <div class="row2">
+          <div>
+            <label class="lbl" for="stWhatsapp">WhatsApp de la producción</label>
+            <input class="field" id="stWhatsapp" name="whatsapp" type="tel" maxlength="24" placeholder="+54 9 11 1234 5678">
+          </div>
+          <div>
+            <label class="lbl" for="stInstagram">Instagram</label>
+            <input class="field" id="stInstagram" name="instagram" maxlength="60" placeholder="usuario">
+          </div>
+        </div>
+        <p class="hint">Al WhatsApp le mandan el comprobante de la transferencia y las consultas.</p>
+
+        <h3>Datos personales</h3>
+        <div>
+          <label class="lbl" for="stConsentimiento">Aviso de privacidad (se muestra en el registro)</label>
+          <textarea class="field" id="stConsentimiento" name="consentimiento" maxlength="3000"></textarea>
+          <p class="hint">Donde dice {lugar} se pone el nombre del lugar. Conviene que lo revise un abogado.</p>
         </div>
         <button class="btn small" type="submit">Guardar ajustes</button>
+        <p class="message" id="ajustesMessage"></p>
       </form>
     </section>
   </div>
 
+  <script src="validar.js"></script>
   <script src="common.js"></script>
   <script src="admin.js"></script>
 </body>

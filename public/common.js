@@ -9,9 +9,16 @@ async function api(url, options = {}) {
   if (!res.ok) {
     const err = new Error(body.error || 'Algo salió mal. Probá de nuevo.');
     err.status = res.status;
+    err.campos = body.campos || null; // errores por campo del formulario
+    err.motivo = body.motivo || null; // "acceso" o "registro": qué pantalla falta
     throw err;
   }
   return body;
+}
+
+// Pesos argentinos sin centavos: 15000 → "$15.000".
+function fmtPesos(n) {
+  return `$${Number(n || 0).toLocaleString('es-AR')}`;
 }
 
 const $ = (sel, root = document) => root.querySelector(sel);

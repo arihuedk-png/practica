@@ -27,66 +27,96 @@
         </div>
         <p class="message" id="codeMessage" role="alert" style="margin-top:10px"></p>
       </form>
+      <div class="gate-links">
+        <button class="link-btn" id="sinCodigo" type="button" hidden>No tengo código</button>
+        <button class="link-btn" id="verMisPedidos" type="button" hidden>Ver mis pedidos</button>
+      </div>
       <p class="fineprint"><span id="footer"></span><span id="ageTag"></span></p>
     </section>
 
-    <!-- 2. Adentro: fiesta y anotarse en lista -->
-    <section class="column fade-in" id="inside" hidden>
-      <p class="kicker">Estás adentro</p>
+    <!-- 2. Registro obligatorio -->
+    <section class="column fade-in" id="registro" hidden>
+      <p class="kicker">Registro</p>
       <h1 class="logo logo-sm" data-club-name></h1>
-      <div id="eventBox"></div>
-      <form id="listForm" class="form-grid" novalidate>
+      <div id="registroEvento"></div>
+      <form id="registroForm" class="form-grid" novalidate>
         <div class="picker" id="eventPicker" hidden></div>
-        <div>
-          <label class="lbl" for="name">Nombre y apellido</label>
-          <input class="field" id="name" autocomplete="name" maxlength="80" required>
-        </div>
-        <div class="row2">
+
+        <p class="hello" id="clienteConocido" hidden>
+          Registrado/a como <b id="clienteNombre"></b>.
+          <button class="link-btn" id="noSoyYo" type="button">No soy yo</button>
+        </p>
+
+        <div class="form-grid" id="datosNuevos">
           <div>
-            <label class="lbl" for="dni">DNI</label>
-            <input class="field" id="dni" inputmode="numeric" maxlength="12" required>
-          </div>
-          <div>
-            <label class="lbl" for="birthdate">Nacimiento</label>
-            <input class="field" id="birthdate" type="date" required>
-          </div>
-        </div>
-        <div class="row2">
-          <div>
-            <label class="lbl" for="phone">Celular</label>
-            <input class="field" id="phone" type="tel" autocomplete="tel" maxlength="30" required>
+            <label class="lbl" for="nombre">Nombre y apellido</label>
+            <input class="field" id="nombre" autocomplete="name" maxlength="80" required aria-describedby="error-nombre">
+            <p class="field-error" id="error-nombre"></p>
           </div>
           <div>
             <label class="lbl" for="instagram">Instagram</label>
-            <input class="field" id="instagram" placeholder="@usuario" autocapitalize="none" spellcheck="false" maxlength="40">
+            <input class="field" id="instagram" placeholder="@usuario" autocapitalize="none" spellcheck="false" maxlength="60" required aria-describedby="error-instagram">
+            <p class="field-error" id="error-instagram"></p>
+          </div>
+          <div class="row2">
+            <div>
+              <label class="lbl" for="cumpleanos">Cumpleaños</label>
+              <input class="field" id="cumpleanos" type="date" required aria-describedby="error-cumpleanos">
+              <p class="field-error" id="error-cumpleanos"></p>
+            </div>
+            <div>
+              <label class="lbl" for="telefono">Teléfono</label>
+              <input class="field" id="telefono" type="tel" autocomplete="tel" maxlength="24" value="+54 9 " required aria-describedby="error-telefono">
+              <p class="field-error" id="error-telefono"></p>
+            </div>
+          </div>
+          <div>
+            <label class="consent">
+              <input type="checkbox" id="consentimiento" aria-describedby="error-consentimiento">
+              <span>Acepto que se usen mis datos como explica el aviso de privacidad.</span>
+            </label>
+            <button class="link-btn" id="verConsentimiento" type="button" aria-expanded="false" aria-controls="textoConsentimiento">Leer el aviso</button>
+            <div class="consent-text" id="textoConsentimiento" hidden></div>
+            <p class="field-error" id="error-consentimiento"></p>
           </div>
         </div>
-        <div>
-          <label class="lbl" for="guests">¿Venís con alguien?</label>
-          <select class="field" id="guests">
-            <option value="0">No, voy solo/a</option>
-            <option value="1">Sí, +1</option>
-            <option value="2">Sí, +2</option>
-            <option value="3">Sí, +3</option>
-          </select>
-        </div>
-        <button class="btn" type="submit" id="listBtn">Anotarme</button>
-        <p class="message" id="listMessage" role="alert"></p>
+
+        <button class="btn" type="submit" id="registroBtn">Registrarme</button>
+        <p class="message" id="registroMessage" role="alert"></p>
       </form>
-      <p class="fineprint"><span>La dirección aparece cuando quedás en lista</span></p>
+      <p class="fineprint"><span>Precios y compras, solo para registrados</span></p>
     </section>
 
-    <!-- 3. Pase -->
-    <section class="column fade-in" id="passView" hidden>
-      <p class="kicker">Tu lugar</p>
+    <!-- 3. Catálogo -->
+    <section class="column fade-in" id="catalogo" hidden>
+      <p class="kicker">Catálogo</p>
       <h1 class="logo logo-sm" data-club-name></h1>
-      <div id="pass" class="column"></div>
-      <p class="pass-hint">Mostrá esta pantalla y tu DNI en la puerta.</p>
-      <button class="btn btn-ghost" id="addAnother" type="button">Anotar a alguien más</button>
-      <p><button class="link-btn" id="forgetPass" type="button">Este pase no es mío, borrarlo</button></p>
+      <div id="catalogoEvento"></div>
+      <div class="banner" id="avisoPedidos" hidden></div>
+      <div class="products" id="productos"></div>
+      <div class="order-bar" id="orderBar" hidden>
+        <div>
+          <p class="order-count" id="orderCount"></p>
+          <p class="order-total" id="orderTotal"></p>
+        </div>
+        <button class="btn" type="button" id="pedirBtn">Pedir</button>
+      </div>
+      <p class="message" id="catalogoMessage" role="alert"></p>
+      <p class="note">No pagás ahora: la producción revisa cada pedido y, si lo aprueba, te habilitamos el pago.</p>
+    </section>
+
+    <!-- 4. Mis pedidos -->
+    <section class="column fade-in" id="pedidos" hidden>
+      <p class="kicker">Tus pedidos</p>
+      <h1 class="logo logo-sm" data-club-name></h1>
+      <p class="note" id="pedidosNota"></p>
+      <div id="listaPedidos" class="column"></div>
+      <button class="btn btn-ghost" id="otroPedido" type="button">Hacer otro pedido</button>
+      <p><button class="link-btn" id="olvidarPedidos" type="button">Borrar los pedidos de este teléfono</button></p>
     </section>
   </main>
 
+  <script src="validar.js"></script>
   <script src="common.js"></script>
   <script src="club.js"></script>
 </body>

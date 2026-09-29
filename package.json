@@ -1,16 +1,16 @@
 {
   "name": "lista-por-invitacion",
   "version": "1.0.0",
-  "description": "Página de un boliche exclusivo: código secreto para entrar, lista de invitados y panel para la puerta.",
+  "description": "Página de una productora: acceso con código de RRPP, registro obligatorio, catálogo con pedidos que aprueba el dueño y pago por Mercado Pago o transferencia.",
   "main": "server.js",
   "private": true,
   "scripts": {
-    "start": "node server.js",
-    "dev": "node --watch server.js",
-    "test": "node --test"
+    "start": "node --disable-warning=ExperimentalWarning server.js",
+    "dev": "node --disable-warning=ExperimentalWarning --watch server.js",
+    "test": "node --disable-warning=ExperimentalWarning --test"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=22.13.0"
   },
   "dependencies": {
     "express": "^5.2.1"
