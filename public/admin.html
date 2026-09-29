@@ -25,6 +25,11 @@
       color: var(--muted); font-size: .72rem; letter-spacing: .2em; text-transform: uppercase; white-space: nowrap;
     }
     .tabs button[aria-selected="true"] { color: var(--text); border-color: var(--text); }
+    .tabs .tab-link {
+      padding: 10px 12px; color: var(--muted); font-family: var(--font-mono); font-size: .72rem; letter-spacing: .2em;
+      text-transform: uppercase; white-space: nowrap; text-decoration: none; border-bottom: 2px solid transparent;
+    }
+    .tabs .tab-link:hover { color: var(--text); }
     .tab-count {
       display: inline-grid; place-items: center; min-width: 18px; height: 18px; padding: 0 5px; margin-left: 6px;
       border-radius: 999px; background: var(--signal); color: #fff; font-size: .62rem; letter-spacing: 0;
@@ -114,6 +119,7 @@
       <button role="tab" data-tab="clientes" aria-selected="false">Clientes</button>
       <button role="tab" data-tab="eventos" aria-selected="false">Fiestas</button>
       <button role="tab" data-tab="ajustes" aria-selected="false">Ajustes</button>
+      <a class="tab-link" href="/puerta">Puerta ↗</a>
     </nav>
 
     <!-- Pedidos -->

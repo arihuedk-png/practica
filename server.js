@@ -15,6 +15,7 @@ const Validar = require('./public/validar');
 const app = express();
 const PORT = process.env.PORT || 3000;
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || '';
+const PUERTA_PASSWORD = process.env.PUERTA_PASSWORD || '';
 const MP_TOKEN = process.env.MP_ACCESS_TOKEN || '';
 const SECRET = process.env.SESSION_SECRET || config().secreto_sesion;
 const HORAS_ACCESO = 6;
@@ -140,6 +141,7 @@ const limitePedidosPersona = rateLimiter(20, 15); // pedidos por cliente
 const limiteRegistrosIp = rateLimiter(2000, 15); // techos generales por IP, altos a propósito
 const limitePedidosIp = rateLimiter(2000, 15);
 const limiteAdmin = rateLimiter(10, 15);
+const limitePuerta = rateLimiter(10, 15); // contraseñas de puerta equivocadas por IP
 
 function codigoPedidoNuevo() {
   let codigo;
@@ -872,6 +874,94 @@ admin.put('/configuracion', (req, res) => {
 
 app.use('/api/admin', admin);
 app.get('/admin', (_req, res) => res.sendFile(path.join(__dirname, 'public', 'admin.html')));
+
+// ---------- Puerta ----------
+// Pantalla para el personal de la puerta: ve solo los pedidos pagados de la noche y marca quién entró.
+// Tiene su propia contraseña (PUERTA_PASSWORD); el dueño también entra con la suya.
+
+const HORAS_PUERTA = 14;
+
+app.post('/api/puerta/login', (req, res) => {
+  limitePuerta.revisar(req.ip);
+  const clave = String(req.body.password || '');
+  const esPuerta = PUERTA_PASSWORD && safeEqual(clave, PUERTA_PASSWORD);
+  const esDueno = ADMIN_PASSWORD && safeEqual(clave, ADMIN_PASSWORD);
+  if (!esPuerta && !esDueno) {
+    limitePuerta.sumar(req.ip);
+    throw new HttpError(401, PUERTA_PASSWORD || ADMIN_PASSWORD ? 'Contraseña incorrecta.' : 'La puerta está desactivada: falta configurar PUERTA_PASSWORD.');
+  }
+  setCookie(req, res, 'puerta', sign({ puerta: true, exp: Date.now() + HORAS_PUERTA * 3600 * 1000 }), HORAS_PUERTA * 3600);
+  res.json({ ok: true });
+});
+
+app.post('/api/puerta/logout', (req, res) => {
+  setCookie(req, res, 'puerta', '', 0);
+  res.json({ ok: true });
+});
+
+function exigirPuerta(req) {
+  if (unsign(getCookie(req, 'puerta'))?.puerta || unsign(getCookie(req, 'admin'))?.admin) return;
+  throw new HttpError(401, 'Iniciá sesión.');
+}
+
+// La fecha que se muestra por defecto: la próxima (o la de esta noche, hasta 12 horas después de empezar).
+function eventoDeLaNoche(eventos) {
+  const d = new Date(Date.now() - 12 * 3600 * 1000);
+  const p = (n) => String(n).padStart(2, '0');
+  const limite = `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+  return eventos.find((e) => e.fecha >= limite) || eventos[eventos.length - 1];
+}
+
+const resumenItems = (pedidoId) => itemsDe(pedidoId).map((i) => `${i.cantidad} × ${i.nombre}`).join(', ');
+
+function vistaPuerta(p) {
+  return {
+    id: p.id,
+    codigo: p.codigo,
+    estado: p.estado,
+    nombre: p.cliente_nombre,
+    instagram: p.instagram,
+    telefono: p.telefono,
+    rrpp_nombre: p.rrpp_nombre,
+    items: resumenItems(p.id),
+    ingreso_en: p.ingreso_en,
+  };
+}
+
+app.get('/api/puerta', (req, res) => {
+  exigirPuerta(req);
+  const eventos = all('SELECT id, nombre, fecha FROM eventos ORDER BY fecha');
+  const evento = eventos.find((e) => e.id === id(req.query.evento_id)) || eventoDeLaNoche(eventos);
+  if (!evento) return res.json({ eventos, evento: null, totales: { pagados: 0, entraron: 0 }, pedidos: [], otros: [] });
+
+  const delEvento = all(`${SQL_PEDIDOS} WHERE p.evento_id = ? ORDER BY c.nombre COLLATE NOCASE`, evento.id);
+  const pagados = delEvento.filter((p) => p.estado === 'pagado');
+  const campos = ['cliente_nombre', 'codigo', 'instagram', 'telefono'];
+  // Si buscan un pedido que existe pero no está pagado, se avisa (no pasa).
+  const q = str(req.query.q, 60);
+  const otros = q.length >= 3 ? filtrar(delEvento.filter((p) => p.estado !== 'pagado'), q, campos).slice(0, 10) : [];
+  res.json({
+    eventos,
+    evento,
+    totales: { pagados: pagados.length, entraron: pagados.filter((p) => p.ingreso_en).length },
+    pedidos: filtrar(pagados, q, campos).map(vistaPuerta),
+    otros: otros.map(vistaPuerta),
+  });
+});
+
+app.post('/api/puerta/:id/ingreso', (req, res) => {
+  exigirPuerta(req);
+  const pedido = get('SELECT * FROM pedidos WHERE id = ?', id(req.params.id));
+  if (!pedido) throw new HttpError(404, 'Pedido no encontrado.');
+  if (pedido.estado !== 'pagado') throw new HttpError(409, 'Ese pedido no está pagado: no pasa.');
+  if (!req.body.deshacer && pedido.ingreso_en) {
+    throw new HttpError(409, `Ya entró a las ${new Date(pedido.ingreso_en).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'America/Argentina/Buenos_Aires' })}.`);
+  }
+  run('UPDATE pedidos SET ingreso_en = ? WHERE id = ?', req.body.deshacer ? null : ahora(), pedido.id);
+  res.json({ pedido: vistaPuerta(get(`${SQL_PEDIDOS} WHERE p.id = ?`, pedido.id)) });
+});
+
+app.get('/puerta', (_req, res) => res.sendFile(path.join(__dirname, 'public', 'puerta.html')));
 
 // ---------- Errores ----------
 

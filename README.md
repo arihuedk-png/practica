@@ -31,6 +31,16 @@ El dueño lo aprueba y recién ahí el cliente paga.
 - **Fiestas:** fechas, cupo, descripción y dirección (la dirección solo la ve quien pagó).
 - **Ajustes:** textos de la puerta, edad mínima, entrar sin RRPP, cómo se cobra, alias/CBU,
   WhatsApp de la producción y el aviso de privacidad.
+- En **Clientes** y **Listas**, cada persona tiene un botón de **WhatsApp** con un saludo ya escrito
+  (si cumple años ese día, la felicita).
+
+**Para la puerta** (`/puerta`, con su propia contraseña)
+
+- Muestra solo los pedidos **pagados** de la noche, en orden alfabético, con un contador de cuántos entraron.
+- Buscador grande por código, nombre o Instagram. Si buscan un pedido que existe pero no está pagado, aparece en rojo: **No pasa**.
+- Botón grande **Entró**. Si el mismo código aparece de nuevo, avisa a qué hora ya entró.
+- Varios celulares pueden usarla a la vez: se actualiza sola cada 10 segundos.
+- La contraseña de la puerta (`PUERTA_PASSWORD`) no abre el panel. El dueño entra a la puerta con la suya.
 
 ## Correrlo en tu computadora
 
@@ -73,6 +83,7 @@ Van en el archivo `.env` (en tu computadora) o en la pestaña **Variables** de R
 | Variable | Para qué sirve |
 | --- | --- |
 | `ADMIN_PASSWORD` | Contraseña del panel. **Obligatoria.** |
+| `PUERTA_PASSWORD` | Contraseña de la pantalla de la puerta, para el personal. Solo deja marcar ingresos. |
 | `MP_ACCESS_TOKEN` | Access Token de Mercado Pago. Opcional: sin él se cobra por transferencia. |
 | `PUBLIC_URL` | Dirección pública, por ejemplo `https://mi-productora.up.railway.app`. Necesaria para Mercado Pago. |
 | `INITIAL_CODE` | Código del RRPP "General" que se crea la primera vez (por defecto `MEDIANOCHE`). |
@@ -122,6 +133,8 @@ public/
   club.js            Lógica de esas pantallas
   admin.html         Panel
   admin.js           Lógica del panel
+  puerta.html        Pantalla de la puerta
+  puerta.js          Lógica de la puerta
   validar.js         Reglas de validación (las usan la página y el servidor)
   common.js          Funciones compartidas
   club.css           Estilos

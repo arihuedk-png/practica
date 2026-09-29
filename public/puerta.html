@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="theme-color" content="#0b0c0e">
+  <title>Puerta</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&family=Syne:wght@700;800&display=swap">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="club.css">
+  <style>
+    .puerta { position: relative; z-index: 1; max-width: 640px; margin: 0 auto; padding: 14px 16px calc(40px + env(safe-area-inset-bottom, 0px)); display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; }
+    .puerta > * { min-width: 0; }
+    .bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    .bar .logo { font-size: 1.8rem; margin: 0; flex: 1; min-width: 0; }
+    .small { width: auto; padding: 8px 12px; font-size: .72rem; }
+
+    .contador { border: 1px solid var(--line); background: var(--ink-2); padding: 14px 16px; display: grid; gap: 10px; }
+    .contador-num { display: flex; align-items: baseline; gap: 10px; margin: 0; }
+    .contador-num b { font-family: var(--font-mono); font-size: 2.4rem; font-weight: 500; line-height: 1; font-variant-numeric: tabular-nums; }
+    .contador-num span { color: var(--muted); font-size: .9rem; }
+    .barra { height: 6px; background: var(--line); overflow: hidden; }
+    .barra i { display: block; height: 100%; width: 0; background: var(--ok); transition: width .3s; }
+
+    .buscador { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 3; background: var(--ink); padding: 6px 0; display: grid; gap: 8px; }
+    .buscar { font-size: 1.15rem; padding: 14px 16px; }
+    .filtros { display: flex; gap: 6px; }
+    .filtros button {
+      flex: 1; padding: 9px 6px; border: 1px solid var(--line); background: transparent; cursor: pointer;
+      font-family: var(--font-mono); font-size: .68rem; letter-spacing: .14em; text-transform: uppercase; color: var(--muted);
+    }
+    .filtros button[aria-pressed="true"] { color: var(--ink); background: var(--text); border-color: var(--text); }
+
+    .fila { border: 1px solid var(--line); background: var(--ink-2); padding: 14px 16px; display: grid; gap: 10px; }
+    .fila.entro { opacity: .6; }
+    .fila.no-pasa { border-color: var(--bad); background: rgba(255, 138, 128, .06); opacity: 1; }
+    .fila-nombre { font-family: var(--font-display); font-weight: 700; font-size: 1.35rem; letter-spacing: -.02em; line-height: 1.15; margin: 0; overflow-wrap: anywhere; }
+    .fila-codigo { font-family: var(--font-mono); font-size: 1.05rem; letter-spacing: .18em; }
+    .fila-sub { color: var(--muted); font-size: .88rem; margin: 0; overflow-wrap: anywhere; }
+    .entro-btn { font-size: 1rem; padding: 16px; letter-spacing: .25em; }
+    .estado-puerta { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; font-family: var(--font-mono); font-size: .8rem; letter-spacing: .08em; }
+    .estado-puerta .ok { color: var(--ok); }
+    .no-pasa .estado-puerta { color: var(--bad); font-size: .9rem; }
+    .empty { color: var(--muted); text-align: center; padding: 28px 0; margin: 0; }
+    .toast {
+      position: fixed; left: 50%; bottom: calc(20px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%);
+      background: var(--ok); color: var(--ink); padding: 12px 18px; font-weight: 600; z-index: 10; max-width: calc(100vw - 32px);
+    }
+    .toast.mal { background: var(--bad); }
+  </style>
+</head>
+<body>
+  <!-- Ingreso -->
+  <main class="wrap" id="loginView" hidden>
+    <section class="column fade-in">
+      <p class="kicker">Puerta</p>
+      <h1 class="logo logo-sm" data-club-name></h1>
+      <form id="loginForm" class="column">
+        <input class="field" type="password" id="password" placeholder="Contraseña de la puerta" aria-label="Contraseña" autocomplete="current-password" required>
+        <button class="btn" type="submit">Entrar</button>
+        <p class="message" id="loginMessage" role="alert"></p>
+      </form>
+    </section>
+  </main>
+
+  <!-- Control de ingreso -->
+  <div class="puerta" id="puertaView" hidden>
+    <header class="bar">
+      <h1 class="logo" data-club-name></h1>
+      <button class="btn btn-ghost small" id="salirBtn" type="button">Salir</button>
+    </header>
+
+    <select class="field" id="evento" aria-label="Fiesta" hidden></select>
+
+    <div class="contador" aria-live="polite">
+      <p class="contador-num"><b id="entraron">0</b><span id="deTotal">de 0 entraron</span></p>
+      <div class="barra"><i id="barra"></i></div>
+    </div>
+
+    <div class="buscador">
+      <input class="field buscar" type="search" id="buscar" placeholder="Código, nombre o Instagram" aria-label="Buscar"
+             autocomplete="off" autocapitalize="none" spellcheck="false">
+      <div class="filtros" role="group" aria-label="Mostrar">
+        <button type="button" data-filtro="faltan" aria-pressed="true">Faltan</button>
+        <button type="button" data-filtro="entraron" aria-pressed="false">Entraron</button>
+        <button type="button" data-filtro="todos" aria-pressed="false">Todos</button>
+      </div>
+    </div>
+
+    <div class="column" id="lista" style="max-width:none"></div>
+  </div>
+
+  <script src="common.js"></script>
+  <script src="puerta.js"></script>
+</body>
+</html>

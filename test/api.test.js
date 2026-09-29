@@ -7,6 +7,7 @@ const path = require('path');
 const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'productora-test-'));
 process.env.DATA_DIR = dataDir;
 process.env.ADMIN_PASSWORD = 'clave-del-panel';
+process.env.PUERTA_PASSWORD = 'clave-de-puerta';
 process.env.INITIAL_CODE = 'luna llena';
 process.env.MP_ACCESS_TOKEN = 'TEST-token';
 process.env.PUBLIC_URL = 'https://productora.example';
@@ -412,4 +413,44 @@ test('muchas personas con la misma IP (datos móviles o WiFi del lugar) pueden r
     const pedido = await persona('/api/pedidos', { method: 'POST', body: { evento_id: 1, items: [{ producto_id: 1, cantidad: 1 }] } });
     assert.equal(pedido.status, 201, `persona ${i}: ${pedido.body?.error}`);
   }
+});
+
+test('puerta: con su propia contraseña ve solo los pagados de la noche y marca quién entró', async () => {
+  const personal = navegador('10.7.7.7');
+  assert.equal((await personal('/api/puerta')).status, 401);
+  assert.equal((await personal('/api/puerta/login', { method: 'POST', body: { password: 'nop' } })).status, 401);
+  assert.equal((await personal('/api/puerta/login', { method: 'POST', body: { password: 'clave-de-puerta' } })).status, 200);
+  for (const ruta of ['/api/admin/pedidos', '/api/admin/clientes', '/api/admin/configuracion']) {
+    assert.equal((await personal(ruta)).status, 401, `la puerta no entra a ${ruta}`);
+  }
+
+  const { pedidos: todos } = (await admin('/api/admin/pedidos?evento_id=1')).body;
+  const pagado = todos.find((p) => p.estado === 'pagado');
+  const sinPagar = todos.find((p) => p.estado === 'pendiente');
+
+  const vista = (await personal('/api/puerta')).body;
+  assert.equal(vista.evento.id, 1, 'por defecto muestra la fecha de la noche');
+  assert.ok(vista.pedidos.every((p) => p.estado === 'pagado'), 'solo pagados');
+  assert.equal(vista.totales.pagados, vista.pedidos.length);
+  assert.match(vista.pedidos[0].items, /\d+ × /);
+  assert.equal(vista.pedidos[0].telefono !== undefined, true);
+
+  const porCodigo = (await personal(`/api/puerta?q=${pagado.codigo.toLowerCase()}`)).body;
+  assert.deepEqual(porCodigo.pedidos.map((p) => p.id), [pagado.id]);
+  const noPasa = (await personal(`/api/puerta?q=${sinPagar.codigo}`)).body;
+  assert.deepEqual(noPasa.pedidos, []);
+  assert.deepEqual(noPasa.otros.map((p) => [p.id, p.estado]), [[sinPagar.id, 'pendiente']], 'avisa que existe pero no está pagado');
+
+  assert.equal((await personal(`/api/puerta/${sinPagar.id}/ingreso`, { method: 'POST', body: {} })).status, 409);
+  const entro = await personal(`/api/puerta/${pagado.id}/ingreso`, { method: 'POST', body: {} });
+  assert.ok(entro.body.pedido.ingreso_en);
+  const otraVez = await personal(`/api/puerta/${pagado.id}/ingreso`, { method: 'POST', body: {} });
+  assert.equal(otraVez.status, 409);
+  assert.match(otraVez.body.error, /Ya entró/);
+  assert.equal((await personal('/api/puerta')).body.totales.entraron, vista.totales.entraron + 1);
+  assert.equal((await personal(`/api/puerta/${pagado.id}/ingreso`, { method: 'POST', body: { deshacer: true } })).body.pedido.ingreso_en, null);
+
+  // El dueño entra a la puerta con su propia contraseña o con la sesión del panel.
+  assert.equal((await admin('/api/puerta')).status, 200);
+  assert.equal((await navegador('10.7.7.8')('/api/puerta/login', { method: 'POST', body: { password: 'clave-del-panel' } })).status, 200);
 });
