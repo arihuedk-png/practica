@@ -1,4 +1,5 @@
 const panel = {
+  lugar: '',
   tab: 'pedidos',
   eventos: [],
   rrpp: [],
@@ -37,6 +38,12 @@ const fechaHora = (iso) => new Date(iso).toLocaleString('es-AR', { day: '2-digit
 const fechaCorta = (iso) => new Date(iso).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' });
 const waLink = (tel, texto) => `https://wa.me/${tel.replace(/\D/g, '')}?text=${encodeURIComponent(texto)}`;
 const vacio = (texto) => `<p class="empty">${texto}</p>`;
+const primerNombre = (nombre) => nombre.split(' ')[0];
+
+// Botón para escribirle a una persona por WhatsApp, con un saludo ya escrito (se puede cambiar antes de mandar).
+function botonWhatsApp(telefono, mensaje) {
+  return `<a class="btn btn-ghost small" href="${waLink(telefono, mensaje)}" target="_blank" rel="noopener">WhatsApp</a>`;
+}
 
 // ---------- Sesión ----------
 
@@ -44,6 +51,7 @@ async function start() {
   try {
     const config = await api('/api/config');
     $$('[data-club-name]').forEach((el) => { el.textContent = config.nombre_lugar; });
+    panel.lugar = config.nombre_lugar;
   } catch { /* sigue igual */ }
   try {
     await api('/api/admin/me');
@@ -440,6 +448,9 @@ async function cargarListas() {
           · ${esc(l.telefono)} · cumple ${dm(l.cumpleanos)}</p>
         <p class="item-sub">${esc(l.rrpp_nombre)} · ${esc(l.evento_nombre)} · anotado ${fechaHora(l.creado_en)}</p>
       </div>
+      <div class="item-actions">
+        ${botonWhatsApp(l.telefono, `Hola ${primerNombre(l.nombre)}! Te escribimos de ${panel.lugar} por ${l.evento_nombre}.`)}
+      </div>
     </div>`).join('') : vacio('Nadie se anotó con ese filtro.');
 }
 
@@ -458,14 +469,21 @@ async function cargarClientes() {
   const uno = clientes.length === 1;
   $('#clientesTotal').textContent = `${clientes.length} cliente${uno ? '' : 's'}${mes ? ` que ${uno ? 'cumple' : 'cumplen'} años en ${MESES[mes - 1].toLowerCase()}` : ''}`;
   const hoyMD = hoy().slice(5);
-  $('#clientesLista').innerHTML = clientes.length ? clientes.map((c) => `
+  $('#clientesLista').innerHTML = clientes.length ? clientes.map((c) => {
+    const cumpleHoy = c.cumpleanos.slice(5) === hoyMD;
+    const saludo = cumpleHoy
+      ? `Hola ${primerNombre(c.nombre)}! Feliz cumple de parte de todo ${panel.lugar} 🎂`
+      : `Hola ${primerNombre(c.nombre)}! Te escribimos de ${panel.lugar}.`;
+    return `
     <div class="item">
       <div class="item-main">
-        <p class="item-title">${esc(c.nombre)} ${c.cumpleanos.slice(5) === hoyMD ? '<span class="chip estado-pendiente">Cumple hoy</span>' : ''}</p>
+        <p class="item-title">${esc(c.nombre)} ${cumpleHoy ? '<span class="chip estado-pendiente">Cumple hoy</span>' : ''}</p>
         <p class="item-sub"><a href="https://instagram.com/${esc(c.instagram)}" target="_blank" rel="noopener">@${esc(c.instagram)}</a> · ${esc(c.telefono)}</p>
         <p class="item-sub">Cumple ${dm(c.cumpleanos)} (${Validar.edad(c.cumpleanos, hoy())} años) · RRPP: ${esc(c.rrpp_nombre)} · registrado el ${fechaCorta(c.creado_en)}</p>
       </div>
-    </div>`).join('') : vacio(mes ? 'Nadie cumple años ese mes.' : 'Todavía no hay clientes registrados.');
+      <div class="item-actions">${botonWhatsApp(c.telefono, saludo)}</div>
+    </div>`;
+  }).join('') : vacio(mes ? 'Nadie cumple años ese mes.' : 'Todavía no hay clientes registrados.');
 }
 
 $('#clientesMes').onchange = () => cargarClientes();
@@ -582,6 +600,7 @@ $('#ajustesForm').addEventListener('submit', async (e) => {
   try {
     const { configuracion } = await api('/api/admin/configuracion', { method: 'PUT', body });
     $$('[data-club-name]').forEach((el) => { el.textContent = configuracion.nombre_lugar; });
+    panel.lugar = configuracion.nombre_lugar;
     fitLogos();
     toast('Ajustes guardados');
     cargarAjustes();
