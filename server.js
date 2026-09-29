@@ -96,29 +96,49 @@ function setCookie(req, res, name, value, maxAgeSeconds) {
   res.append('Set-Cookie', `${name}=${value}; HttpOnly; Path=/; SameSite=Lax; Max-Age=${maxAgeSeconds}${secure}`);
 }
 
-// Límite de intentos por IP (para que el código no se pueda adivinar probando, y contra spam).
+// Límite de intentos en una ventana de tiempo (para que el código no se pueda adivinar probando, y contra spam).
+// Ojo: muchos celulares comparten la misma IP (datos móviles, el WiFi del lugar), así que los límites
+// por IP son altos y los estrictos se cuentan por persona.
 function rateLimiter(max, windowMinutes) {
   const hits = new Map();
+  const vigente = (key) => {
+    const entry = hits.get(key);
+    return entry && Date.now() <= entry.reset ? entry : null;
+  };
+  const limpiar = () => {
+    if (hits.size < 10000) return;
+    for (const [key, entry] of hits) if (Date.now() > entry.reset) hits.delete(key);
+  };
+  const bloquear = () => {
+    throw new HttpError(429, 'Muchos intentos seguidos. Esperá unos minutos.');
+  };
   return {
-    check(ip) {
-      const now = Date.now();
-      const entry = hits.get(ip);
-      if (!entry || now > entry.reset) {
-        hits.set(ip, { count: 1, reset: now + windowMinutes * 60 * 1000 });
-        return;
-      }
-      entry.count += 1;
-      if (entry.count > max) throw new HttpError(429, 'Muchos intentos seguidos. Esperá unos minutos.');
+    // Suma un intento y corta si se pasó del límite.
+    check(key) {
+      this.sumar(key);
+      if (vigente(key).count > max) bloquear();
     },
-    clear(ip) {
-      hits.delete(ip);
+    // Corta si ya se pasó del límite, sin sumar.
+    revisar(key) {
+      if ((vigente(key)?.count ?? 0) >= max) bloquear();
+    },
+    sumar(key) {
+      limpiar();
+      const entry = vigente(key);
+      if (entry) entry.count += 1;
+      else hits.set(key, { count: 1, reset: Date.now() + windowMinutes * 60 * 1000 });
+    },
+    clear(key) {
+      hits.delete(key);
     },
   };
 }
 
-const limiteAcceso = rateLimiter(8, 15);
-const limiteRegistro = rateLimiter(30, 15);
-const limitePedidos = rateLimiter(20, 15);
+const limiteAcceso = rateLimiter(20, 15); // códigos equivocados por IP
+const limiteRegistroPersona = rateLimiter(10, 15); // registros por navegador
+const limitePedidosPersona = rateLimiter(20, 15); // pedidos por cliente
+const limiteRegistrosIp = rateLimiter(2000, 15); // techos generales por IP, altos a propósito
+const limitePedidosIp = rateLimiter(2000, 15);
 const limiteAdmin = rateLimiter(10, 15);
 
 function codigoPedidoNuevo() {
@@ -215,10 +235,13 @@ app.get('/api/config', (_req, res) => {
 });
 
 app.post('/api/acceso', (req, res) => {
-  limiteAcceso.check(req.ip);
+  limiteAcceso.revisar(req.ip);
   const codigo = Validar.codigo(req.body.codigo);
   const rrpp = codigo && get('SELECT * FROM rrpp WHERE codigo = ? AND activo = 1', codigo);
-  if (!rrpp) throw new HttpError(401, 'No es ese. Preguntale a quien te lo pasó.');
+  if (!rrpp) {
+    limiteAcceso.sumar(req.ip); // solo cuentan los intentos equivocados
+    throw new HttpError(401, 'No es ese. Preguntale a quien te lo pasó.');
+  }
   limiteAcceso.clear(req.ip);
   darAcceso(req, res, rrpp.id);
   res.json({ ok: true });
@@ -243,8 +266,9 @@ app.get('/api/sesion', (req, res) => {
 });
 
 app.post('/api/registro', (req, res) => {
-  limiteRegistro.check(req.ip);
   const acceso = exigirAcceso(req);
+  limiteRegistrosIp.check(req.ip);
+  limiteRegistroPersona.check(getCookie(req, 'acceso'));
   const evento = eventoAbierto(req.body.evento_id);
   const { valores, errores } = Validar.registro(req.body, { edadMinima: config().edad_minima, referencia: evento.fecha });
   if (errores) throw new HttpError(400, 'Revisá los datos marcados.', { campos: errores });
@@ -303,9 +327,10 @@ app.get('/api/catalogo', (req, res) => {
 });
 
 app.post('/api/pedidos', (req, res) => {
-  limitePedidos.check(req.ip);
   exigirAcceso(req);
   const cliente = exigirCliente(req);
+  limitePedidosIp.check(req.ip);
+  limitePedidosPersona.check(`cliente:${cliente.id}`);
   const evento = eventoDelCliente(cliente, req.body.evento_id);
   const { recargo } = config();
 
@@ -501,7 +526,7 @@ admin.get('/pedidos', (req, res) => {
     estado, estado, eventoId, eventoId,
   );
   const pedidos = filtrar(filas, req.query.q, ['cliente_nombre', 'instagram', 'telefono', 'codigo', 'rrpp_nombre'])
-    .slice(0, 300)
+    .slice(0, 2000)
     .map(vistaAdmin);
   const resumen = get(
     `SELECT COALESCE(SUM(estado = 'pendiente'), 0) AS pendientes,

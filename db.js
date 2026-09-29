@@ -16,7 +16,9 @@ const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
 fs.mkdirSync(DATA_DIR, { recursive: true });
 
 const db = new DatabaseSync(path.join(DATA_DIR, 'productora.db'));
-db.exec('PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000;');
+// WAL + synchronous NORMAL: la configuración recomendada por SQLite para servidores; mucho más rápida
+// y la base nunca queda corrupta (ante un corte de luz, como mucho se pierde el último segundo).
+db.exec('PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL; PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000;');
 
 const AHORA = "(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))";
 

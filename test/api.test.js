@@ -122,7 +122,7 @@ test('código incorrecto: error y límite de intentos', async () => {
   assert.equal(mal.status, 401);
   assert.match(mal.body.error, /No es ese/);
   let ultimo;
-  for (let i = 0; i < 8; i++) ultimo = await visitante('/api/acceso', { method: 'POST', body: { codigo: 'nope' } });
+  for (let i = 0; i < 20; i++) ultimo = await visitante('/api/acceso', { method: 'POST', body: { codigo: 'nope' } });
   assert.equal(ultimo.status, 429);
 });
 
@@ -397,4 +397,19 @@ test('seguridad: panel con contraseña, solo JSON y cookies firmadas', async () 
   const config = (await admin('/api/admin/configuracion')).body;
   assert.equal(config.configuracion.secreto_sesion, undefined, 'el secreto nunca sale de la base');
   assert.equal(config.mercadoPagoConfigurado, true);
+});
+
+test('muchas personas con la misma IP (datos móviles o WiFi del lugar) pueden registrarse y pedir', async () => {
+  await admin(`/api/admin/productos/1`, { method: 'PUT', body: { precio: 10000, activo: true } });
+  for (let i = 0; i < 40; i++) {
+    const persona = navegador('200.1.1.1');
+    assert.equal((await persona('/api/acceso', { method: 'POST', body: { codigo: 'lunallena' } })).status, 200);
+    const registro = await persona('/api/registro', {
+      method: 'POST',
+      body: datos({ telefono: `+54911${50000000 + i}`, nombre: 'Misma Red', instagram: `misma_red_${i}` }),
+    });
+    assert.equal(registro.status, 201, `persona ${i}: ${registro.body?.error}`);
+    const pedido = await persona('/api/pedidos', { method: 'POST', body: { evento_id: 1, items: [{ producto_id: 1, cantidad: 1 }] } });
+    assert.equal(pedido.status, 201, `persona ${i}: ${pedido.body?.error}`);
+  }
 });
