@@ -80,7 +80,7 @@ function rateLimiter(max, windowMinutes) {
         return;
       }
       entry.count += 1;
-      if (entry.count > max) throw new HttpError(429, 'Demasiados intentos. Probá de nuevo en unos minutos.');
+      if (entry.count > max) throw new HttpError(429, 'Muchos intentos seguidos. Esperá unos minutos.');
     },
     clear(ip) {
       hits.delete(ip);
@@ -132,21 +132,21 @@ function access(req) {
 
 function requireAccess(req, _res, next) {
   req.access = access(req);
-  if (!req.access) throw new HttpError(401, 'Necesitás el código para entrar.');
+  if (!req.access) throw new HttpError(401, 'Sin código no se pasa.');
   next();
 }
 
 app.get('/api/config', (_req, res) => {
-  const { clubName, gateLine1, gateLine2, footer, instagram } = data.settings;
-  res.json({ clubName, gateLine1, gateLine2, footer, instagram });
+  const { clubName, gateLine1, gateLine2, footer, instagram, minAge } = data.settings;
+  res.json({ clubName, gateLine1, gateLine2, footer, instagram, minAge });
 });
 
 app.post('/api/unlock', (req, res) => {
   unlockLimiter.check(req.ip);
   const wanted = normalizeCode(req.body.code);
   const code = wanted && data.codes.find((c) => c.active && safeEqual(c.code, wanted));
-  if (!code) throw new HttpError(401, 'Ese código no es.');
-  if (code.maxUses && code.uses >= code.maxUses) throw new HttpError(410, 'Ese código ya no está disponible.');
+  if (!code) throw new HttpError(401, 'No es ese. Preguntale a quien te lo pasó.');
+  if (code.maxUses && code.uses >= code.maxUses) throw new HttpError(410, 'Ese código ya se usó todo lo que se podía.');
   code.uses += 1;
   save();
   unlockLimiter.clear(req.ip);
@@ -172,7 +172,7 @@ function ageOn(birthdate, when) {
 
 app.post('/api/entries', requireAccess, (req, res) => {
   const event = data.events.find((e) => e.id === num(req.body.eventId));
-  if (!event || !publicEvent(event).listOpen) throw new HttpError(400, 'La lista para esta fecha está cerrada.');
+  if (!event || !publicEvent(event).listOpen) throw new HttpError(400, 'La lista de esta fecha ya cerró.');
 
   const name = str(req.body.name, 80);
   const dni = str(req.body.dni, 20).replace(/[.\s-]/g, '').toUpperCase();
@@ -181,19 +181,19 @@ app.post('/api/entries', requireAccess, (req, res) => {
   const phone = str(req.body.phone, 30);
   const guests = Math.max(0, Math.min(3, Math.floor(num(req.body.guests)) || 0));
 
-  if (name.split(/\s+/).length < 2) throw new HttpError(400, 'Poné tu nombre y apellido.');
-  if (!/^[A-Z0-9]{6,12}$/.test(dni)) throw new HttpError(400, 'El DNI no parece válido.');
+  if (name.split(/\s+/).length < 2) throw new HttpError(400, 'Necesitamos nombre y apellido, como figura en el DNI.');
+  if (!/^[A-Z0-9]{6,12}$/.test(dni)) throw new HttpError(400, 'Revisá el DNI: solo números, sin puntos.');
   if (!/^\d{4}-\d{2}-\d{2}$/.test(birthdate)) throw new HttpError(400, 'Completá tu fecha de nacimiento.');
   if (ageOn(birthdate, event.date) < data.settings.minAge) {
     throw new HttpError(400, `Tenés que tener ${data.settings.minAge} años o más el día de la fiesta.`);
   }
-  if (!phone) throw new HttpError(400, 'Dejanos un celular.');
+  if (!phone) throw new HttpError(400, 'Falta el celular.');
 
   const existing = data.entries.find((e) => e.eventId === event.id && e.dni === dni);
   if (existing) return res.json({ entry: passView(existing), existing: true });
 
   const taken = data.entries.filter((e) => e.eventId === event.id).length;
-  if (event.capacity && taken >= event.capacity) throw new HttpError(400, 'La lista se llenó.');
+  if (event.capacity && taken >= event.capacity) throw new HttpError(400, 'Se llenó la lista. Llegaste tarde esta vez.');
 
   let pass;
   do pass = passCode(); while (data.entries.some((e) => e.pass === pass));

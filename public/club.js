@@ -3,6 +3,7 @@ const state = { events: [], minAge: 18, config: {} };
 
 function show(id) {
   for (const section of ['gate', 'inside', 'passView']) $(`#${section}`).hidden = section !== id;
+  fitLogos();
   if (id === 'gate') setTimeout(() => $('#code').focus(), 50);
 }
 
@@ -17,6 +18,7 @@ $('#codeForm').addEventListener('submit', async (e) => {
   try {
     await api('/api/unlock', { method: 'POST', body: { code: input.value } });
     input.value = '';
+    strobe();
     await openInside();
   } catch (err) {
     $('#codeMessage').textContent = err.message;
@@ -29,13 +31,29 @@ $('#codeForm').addEventListener('submit', async (e) => {
   }
 });
 
+function strobe() {
+  const flash = document.createElement('div');
+  flash.className = 'strobe';
+  document.body.appendChild(flash);
+  setTimeout(() => flash.remove(), 700);
+}
+
 // ---------- Adentro ----------
 
 function eventHtml(ev) {
+  const date = parseLocal(ev.date);
+  const day = date.toLocaleDateString('es-AR', { weekday: 'short', day: 'numeric', month: 'short' }).replace(/\./g, '');
+  const time = date.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit', hour12: false });
   return `
-    <p class="event-date">${esc(fmtEventDate(ev.date))}</p>
-    <h2 class="event-name">${esc(ev.name)}</h2>
-    ${ev.description ? `<p class="event-desc">${esc(ev.description)}</p>` : ''}`;
+    <div class="event-head">
+      <h2 class="event-name">${esc(ev.name)}</h2>
+      ${ev.description ? `<p class="event-desc">${esc(ev.description)}</p>` : ''}
+    </div>
+    <dl class="event-data">
+      <div><dt>Fecha</dt><dd>${esc(day)}</dd></div>
+      <div><dt>Puerta</dt><dd>${esc(time)} h</dd></div>
+      <div><dt>Lugar</dt><dd>A revelar</dd></div>
+    </dl>`;
 }
 
 function renderEvents() {
@@ -45,10 +63,10 @@ function renderEvents() {
     const full = state.events.some((ev) => ev.full);
     const ig = state.config.instagram;
     $('#eventBox').innerHTML = `
-      <div class="event">
-        <h2 class="event-name">${full ? 'La lista se llenó' : 'No hay fechas abiertas'}</h2>
-        <p class="event-desc">${ig ? `Las próximas fechas se anuncian en <a href="https://instagram.com/${esc(ig)}" target="_blank" rel="noopener">@${esc(ig)}</a>.` : 'Volvé a pasar en unos días.'}</p>
-      </div>`;
+      <div class="event"><div class="event-head">
+        <h2 class="event-name">${full ? 'Se llenó la lista' : 'Por ahora, nada'}</h2>
+        <p class="event-desc">${ig ? `La próxima fecha sale primero en <a href="https://instagram.com/${esc(ig)}" target="_blank" rel="noopener">@${esc(ig)}</a>.` : 'La próxima fecha se abre pronto. Guardá el código.'}</p>
+      </div></div>`;
     form.hidden = true;
     return;
   }
@@ -58,7 +76,7 @@ function renderEvents() {
     $('#eventPicker').hidden = true;
     $('#eventPicker').innerHTML = `<input type="radio" name="eventId" value="${open[0].id}" checked>`;
   } else {
-    $('#eventBox').innerHTML = '<div class="event"><h2 class="event-name">Elegí la fecha</h2></div>';
+    $('#eventBox').innerHTML = '<div class="event"><div class="event-head"><h2 class="event-name">Hay más de una fecha</h2><p class="event-desc">Elegí a cuál venís.</p></div></div>';
     $('#eventPicker').hidden = false;
     $('#eventPicker').innerHTML = open.map((ev, i) => `
       <label><input type="radio" name="eventId" value="${ev.id}" ${i === 0 ? 'checked' : ''}>
@@ -82,7 +100,7 @@ $('#listForm').addEventListener('submit', async (e) => {
   $('#listMessage').textContent = '';
   const required = ['name', 'dni', 'birthdate', 'phone'].find((id) => !$(`#${id}`).value.trim());
   if (required) {
-    $('#listMessage').textContent = 'Completá todos los datos.';
+    $('#listMessage').textContent = 'Faltan datos. Sin eso no te podemos anotar.';
     $(`#${required}`).focus();
     return;
   }
@@ -104,11 +122,11 @@ $('#listForm').addEventListener('submit', async (e) => {
     passes.unshift({ id: entry.id, token: entry.token });
     store.set(PASSES_KEY, passes.slice(0, 10));
     $('#listForm').reset();
-    renderPasses([entry], existing ? 'Ya estabas en lista' : null);
+    renderPasses([entry], existing ? 'Ya estabas anotado/a' : null);
   } catch (err) {
     if (err.status === 401) {
       show('gate');
-      $('#codeMessage').textContent = 'Tu acceso venció. Volvé a ingresar el código.';
+      $('#codeMessage').textContent = 'Pasó mucho tiempo. Poné el código de nuevo.';
     } else {
       $('#listMessage').textContent = err.message;
     }
@@ -121,20 +139,26 @@ $('#listForm').addEventListener('submit', async (e) => {
 
 function passHtml(entry, status) {
   const ev = entry.event || {};
+  const row = (label, value) => (value ? `<div><dt>${label}</dt><dd>${esc(value)}</dd></div>` : '');
   return `
-    <p class="pass-status">${esc(status || (entry.checkedIn ? 'Ya ingresaste' : 'Estás en lista'))}</p>
-    <p class="pass-name">${esc(entry.name)}</p>
-    ${entry.guests ? `<p class="pass-guests">+${entry.guests} acompañante${entry.guests > 1 ? 's' : ''}</p>` : ''}
-    <p class="pass-code" aria-label="Código de ingreso">${esc(entry.pass)}</p>
-    <hr class="pass-divider">
-    ${ev.name ? `<p class="pass-detail"><b>${esc(ev.name)}</b></p>` : ''}
-    ${ev.date ? `<p class="pass-detail">${esc(fmtEventDate(ev.date))}</p>` : ''}
-    ${ev.address ? `<p class="pass-detail">${esc(ev.address)}</p>` : ''}
-    <p class="pass-hint">Mostrá este código y tu DNI en la puerta.</p>`;
+    <div class="pass-top">
+      <p class="pass-status">${esc(status || (entry.checkedIn ? 'Ya entraste' : 'En lista'))}</p>
+      <p class="pass-name">${esc(entry.name)}</p>
+      ${entry.guests ? `<p class="pass-guests">+${entry.guests} con vos</p>` : ''}
+      <p class="pass-code" aria-label="Código de ingreso">${esc(entry.pass)}</p>
+    </div>
+    <div class="pass-cut"></div>
+    <dl class="pass-data">
+      ${row('Fiesta', ev.name)}
+      ${row('Cuándo', ev.date && fmtEventDate(ev.date))}
+      ${row('Dónde', ev.address)}
+    </dl>`;
 }
 
 function renderPasses(entries, status) {
-  $('#pass').outerHTML = `<div id="pass" class="column">${entries.map((entry, i) => `<div class="pass">${passHtml(entry, i === 0 ? status : null)}</div>`).join('')}</div>`;
+  $('#pass').innerHTML = entries
+    .map((entry, i) => `<div class="pass ${entry.checkedIn ? 'in' : ''}">${passHtml(entry, i === 0 ? status : null)}</div>`)
+    .join('');
   show('passView');
 }
 
@@ -168,9 +192,11 @@ async function init() {
     state.config = config;
     document.title = config.clubName;
     $$('[data-club-name]').forEach((el) => { el.textContent = config.clubName; });
+    fitLogos();
     $('#gateLine1').textContent = config.gateLine1;
     $('#gateLine2').textContent = config.gateLine2;
     $('#footer').textContent = config.footer;
+    $('#ageTag').textContent = config.minAge ? `+${config.minAge}` : '';
   } catch { /* se muestra igual */ }
 
   const passes = await loadStoredPasses();

@@ -47,3 +47,18 @@ const store = {
     try { localStorage.removeItem(key); } catch { /* sin almacenamiento */ }
   },
 };
+
+// Achica el logo lo justo para que el nombre entre en una línea.
+function fitLogos() {
+  for (const el of $$('.logo')) {
+    if (!el.offsetParent) continue; // oculto
+    el.style.fontSize = '';
+    const width = el.clientWidth;
+    if (el.scrollWidth > width) {
+      const size = parseFloat(getComputedStyle(el).fontSize);
+      el.style.fontSize = `${Math.floor(size * (width / el.scrollWidth) * 0.98)}px`;
+    }
+  }
+}
+window.addEventListener('resize', fitLogos);
+document.fonts?.ready.then(fitLogos);

@@ -7,7 +7,8 @@ con tu código de ingreso y recién ahí se revela la dirección.
 ## Qué incluye
 
 **La puerta** (`/`)
-- Pantalla oscura con el logo manuscrito, el texto de bienvenida y el campo "Escribí el código".
+- Estética de club techno: negro con grano de película, nombre en letra gruesa y ancha, datos en letra de máquina
+  y una luz roja de "en lista". Al acertar el código, la pantalla hace un flash de estroboscópico.
 - El código se verifica en el servidor: nunca aparece en el código de la página.
 - Límite de 8 intentos cada 15 minutos por conexión, para que no se pueda adivinar probando.
 - El acceso dura 6 horas en ese teléfono.

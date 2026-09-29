@@ -30,11 +30,13 @@ async function start() {
   } catch {
     $('#loginView').hidden = false;
     $('#panelView').hidden = true;
+    fitLogos();
     setTimeout(() => $('#password').focus(), 50);
     return;
   }
   $('#loginView').hidden = true;
   $('#panelView').hidden = false;
+  fitLogos();
   await loadEvents();
   showTab(panel.tab);
 }
@@ -289,6 +291,7 @@ $('#settingsForm').addEventListener('submit', async (e) => {
   for (const input of e.target.elements) if (input.name) body[input.name] = input.type === 'number' ? Number(input.value) : input.value;
   const { settings } = await api('/api/admin/settings', { method: 'PUT', body });
   $$('[data-club-name]').forEach((el) => { el.textContent = settings.clubName; });
+  fitLogos();
   toast('Ajustes guardados');
 });
 

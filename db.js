@@ -25,9 +25,9 @@ function seed() {
   return {
     settings: {
       clubName: process.env.CLUB_NAME || 'medianoche',
-      gateLine1: 'Si llegaste hasta acá, alguien te habló de nosotros.',
-      gateLine2: 'Ingresá el código para continuar.',
-      footer: 'Solo por invitación',
+      gateLine1: 'No hay flyers ni publicidad. El código se pasa de boca en boca.',
+      gateLine2: 'Si lo tenés, ya sabés qué hacer.',
+      footer: 'Derecho de admisión reservado',
       instagram: '',
       minAge: 18,
     },
@@ -35,7 +35,7 @@ function seed() {
       id: 1,
       name: 'Noche de apertura',
       date: nextFriday(),
-      description: 'Dress code: negro. Lista hasta la 1:30, después de esa hora no se garantiza el ingreso.',
+      description: 'Todo negro. Lista hasta la 1:30; después, depende de la puerta.',
       address: 'Dirección a confirmar',
       capacity: 200,
       listOpen: true,

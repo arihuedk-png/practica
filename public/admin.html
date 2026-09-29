@@ -4,35 +4,38 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="robots" content="noindex, nofollow">
-  <meta name="theme-color" content="#1c1d1e">
+  <meta name="theme-color" content="#0b0c0e">
   <title>Panel</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600&family=Mrs+Saint+Delafield&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&family=Syne:wght@700;800&display=swap">
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="club.css">
   <style>
     .panel { max-width: 960px; margin: 0 auto; padding: 16px 16px calc(40px + env(safe-area-inset-bottom, 0px)); display: grid; grid-template-columns: minmax(0, 1fr); gap: 18px; }
     .bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-    .bar .logo { font-size: 2.8rem; margin: 0; text-align: left; }
-    .tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line-soft); overflow-x: auto; }
+    .bar .logo { font-size: 2rem; margin: 0; flex: 1; min-width: 0; }
+    .panel { position: relative; z-index: 1; }
+    .stat b, .tabs button, .chip { font-family: var(--font-mono); }
+    .stat, .item, .card { background: var(--ink-2); }
+    .tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); overflow-x: auto; }
     .tabs button {
       background: none; border: 0; border-bottom: 2px solid transparent; padding: 10px 12px; cursor: pointer;
       color: var(--muted); font-size: .72rem; letter-spacing: .2em; text-transform: uppercase; white-space: nowrap;
     }
-    .tabs button[aria-selected="true"] { color: var(--text); border-color: var(--cream); }
+    .tabs button[aria-selected="true"] { color: var(--text); border-color: var(--text); }
     .toolbar { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
     .toolbar > .field { flex: 1 1 200px; width: auto; min-width: 0; max-width: 100%; }
     .panel > * { min-width: 0; }
     .toolbar .btn { width: auto; }
     .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
-    .stat { border: 1px solid var(--line-soft); border-radius: 8px; padding: 12px; }
+    .stat { border: 1px solid var(--line); border-radius: 8px; padding: 12px; }
     .stat b { display: block; font-size: 1.6rem; font-weight: 600; font-variant-numeric: tabular-nums; }
     .stat span { font-size: .68rem; letter-spacing: .18em; text-transform: uppercase; color: var(--muted); }
     .rows { display: grid; gap: 8px; }
     .item {
       display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; align-items: center;
-      border: 1px solid var(--line-soft); border-radius: 8px; padding: 12px 14px;
+      border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px;
     }
     .item.in { border-color: rgba(143, 199, 154, .45); background: rgba(143, 199, 154, .06); }
     .item-main { min-width: 0; }
@@ -44,14 +47,14 @@
     .chip.on { color: var(--ok); border-color: rgba(143, 199, 154, .5); }
     .small { width: auto; padding: 8px 12px; font-size: .85rem; }
     .danger { color: var(--bad); border-color: rgba(227, 154, 143, .4); }
-    .card { border: 1px solid var(--line-soft); border-radius: 10px; padding: 18px; display: grid; gap: 14px; }
+    .card { border: 1px solid var(--line); border-radius: 10px; padding: 18px; display: grid; gap: 14px; }
     .card h2 { margin: 0; font-size: 1rem; font-weight: 600; }
     .check { display: flex; gap: 10px; align-items: center; font-size: .92rem; }
-    .check input { width: 18px; height: 18px; accent-color: var(--cream); }
+    .check input { width: 18px; height: 18px; accent-color: var(--text); }
     .empty { color: var(--muted); text-align: center; padding: 28px 0; margin: 0; }
     .toast {
       position: fixed; left: 50%; bottom: calc(20px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%);
-      background: var(--cream); color: var(--cream-ink); padding: 10px 16px; border-radius: 6px; font-size: .9rem; z-index: 10;
+      background: var(--text); color: var(--ink); padding: 10px 16px; border-radius: 6px; font-size: .9rem; z-index: 10;
     }
     textarea.field { min-height: 80px; resize: vertical; }
     @media (max-width: 560px) {
