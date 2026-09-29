@@ -1,4 +1,4 @@
-// Utilidades compartidas por la tienda, el seguimiento y el panel admin.
+// Utilidades compartidas por la puerta y el panel.
 async function api(url, options = {}) {
   const res = await fetch(url, {
     ...options,
@@ -6,7 +6,11 @@ async function api(url, options = {}) {
     body: options.body && typeof options.body !== 'string' ? JSON.stringify(options.body) : options.body,
   });
   const body = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(body.error || 'Ocurrió un error');
+  if (!res.ok) {
+    const err = new Error(body.error || 'Algo salió mal. Probá de nuevo.');
+    err.status = res.status;
+    throw err;
+  }
   return body;
 }
 
@@ -17,47 +21,29 @@ function esc(value) {
   return String(value ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 
-function fmtMoney(value) {
-  return '$' + Number(value || 0).toLocaleString('es', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+// Las fechas se guardan como "2026-10-03T00:30" (hora local del boliche).
+function parseLocal(value) {
+  const [d, t = '00:00'] = String(value).split('T');
+  const [y, m, day] = d.split('-').map(Number);
+  const [h, min] = t.split(':').map(Number);
+  return new Date(y, m - 1, day, h, min);
 }
 
-function fmtDate(iso) {
-  return new Date(iso).toLocaleString('es', { dateStyle: 'short', timeStyle: 'short' });
+function fmtEventDate(value) {
+  const date = parseLocal(value);
+  const day = date.toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' });
+  const time = date.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit', hour12: false });
+  return `${day} · ${time} h`;
 }
 
-const STATUS_LABELS = {
-  pendiente: 'Pendiente',
-  confirmado: 'Confirmado',
-  preparando: 'En preparación',
-  en_camino: 'En camino',
-  entregado: 'Entregado',
-  cancelado: 'Cancelado',
+const store = {
+  get(key) {
+    try { return JSON.parse(localStorage.getItem(key)); } catch { return null; }
+  },
+  set(key, value) {
+    try { localStorage.setItem(key, JSON.stringify(value)); } catch { /* sin almacenamiento */ }
+  },
+  remove(key) {
+    try { localStorage.removeItem(key); } catch { /* sin almacenamiento */ }
+  },
 };
-
-const PAYMENT_LABELS = { efectivo: 'Efectivo', transferencia: 'Transferencia', mercadopago: 'Mercado Pago' };
-
-function toast(message, type = 'ok') {
-  let box = $('#toasts');
-  if (!box) {
-    box = document.createElement('div');
-    box.id = 'toasts';
-    document.body.appendChild(box);
-  }
-  const el = document.createElement('div');
-  el.className = `toast toast-${type}`;
-  el.textContent = message;
-  box.appendChild(el);
-  setTimeout(() => el.remove(), 3500);
-}
-
-// Imagen de reemplazo cuando un producto no tiene foto.
-function placeholderImage(name) {
-  const hue = [...String(name)].reduce((h, c) => (h + c.charCodeAt(0)) % 360, 0);
-  const letter = esc(String(name).trim().charAt(0).toUpperCase() || '?');
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300"><rect width="400" height="300" fill="hsl(${hue},60%,88%)"/><text x="200" y="190" font-family="sans-serif" font-size="140" font-weight="700" text-anchor="middle" fill="hsl(${hue},45%,45%)">${letter}</text></svg>`;
-  return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
-}
-
-function applyTheme(color) {
-  if (color) document.documentElement.style.setProperty('--brand', color);
-}

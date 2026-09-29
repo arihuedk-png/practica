@@ -4,11 +4,10 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 
-const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'tienda-test-'));
+const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lista-test-'));
 process.env.DATA_DIR = dataDir;
-process.env.ADMIN_EMAIL = 'admin@test.com';
-process.env.ADMIN_PASSWORD = 'secreto123';
-process.env.WHATSAPP_NUMBER = '5215512345678';
+process.env.ADMIN_PASSWORD = 'clave-panel';
+process.env.INITIAL_CODE = 'luna llena';
 
 const app = require('../server');
 let server;
@@ -25,126 +24,111 @@ after(() => {
   fs.rmSync(dataDir, { recursive: true, force: true });
 });
 
-async function call(url, { method = 'GET', body, cookie } = {}) {
-  const res = await fetch(base + url, {
-    method,
-    headers: { 'Content-Type': 'application/json', ...(cookie ? { Cookie: cookie } : {}) },
-    body: body && JSON.stringify(body),
-  });
-  const json = await res.json().catch(() => null);
+async function call(url, { method = 'GET', body, cookie, ip } = {}) {
+  const headers = { 'Content-Type': 'application/json' };
+  if (cookie) headers.Cookie = cookie;
+  if (ip) headers['X-Forwarded-For'] = ip;
+  const res = await fetch(base + url, { method, headers, body: body && JSON.stringify(body) });
+  const text = await res.text();
+  let json = null;
+  try { json = JSON.parse(text); } catch { /* no es JSON */ }
   const setCookie = res.headers.get('set-cookie');
-  return { status: res.status, body: json, cookie: setCookie && setCookie.split(';')[0] };
+  return { status: res.status, body: json, text, cookie: setCookie && setCookie.split(';')[0] };
 }
 
-test('el catálogo trae categorías y productos activos', async () => {
-  const { status, body } = await call('/api/catalog');
-  assert.equal(status, 200);
-  assert.ok(body.categories.length > 0);
-  assert.ok(body.products.every((p) => p.active));
+const person = (over = {}) => ({
+  eventId: 1, name: 'Sofía Pérez', dni: '40.123.456', birthdate: '1998-05-10', phone: '11 5555 5555', instagram: '@sofi', guests: 1, ...over,
 });
 
-test('crear pedido recalcula precios en el servidor y genera link de WhatsApp', async () => {
-  const { body: catalog } = await call('/api/catalog');
-  const product = catalog.products[0];
-  const { status, body } = await call('/api/orders', {
-    method: 'POST',
-    body: {
-      items: [{ productId: product.id, qty: 2, note: 'sin sal', price: 0.01 }],
-      customer: { name: 'Ana', phone: '555 123', address: 'Calle 1' },
-      delivery: 'envio',
-      payment: 'efectivo',
-    },
-  });
-  assert.equal(status, 201);
-  assert.equal(body.order.subtotal, product.price * 2);
-  assert.equal(body.order.total, product.price * 2 + body.order.deliveryFee);
-  assert.match(body.order.whatsappUrl, /^https:\/\/wa\.me\/5215512345678\?text=/);
-  assert.equal(body.order.token, undefined);
-
-  const tracked = await call(body.order.trackingUrl.replace('/pedido.html?id=', '/api/orders/').replace('&t=', '?t='));
-  assert.equal(tracked.status, 200);
-  assert.equal(tracked.body.order.id, body.order.id);
-
-  const wrongToken = await call(`/api/orders/${body.order.id}?t=malo`);
-  assert.equal(wrongToken.status, 404);
+test('sin código no se ven las fiestas ni se puede anotar', async () => {
+  assert.equal((await call('/api/events')).status, 401);
+  assert.equal((await call('/api/entries', { method: 'POST', body: person() })).status, 401);
+  const config = await call('/api/config');
+  assert.equal(config.status, 200);
+  assert.ok(!JSON.stringify(config.body).includes('LUNA'), 'el código nunca se envía al navegador');
 });
 
-test('rechaza pedidos inválidos', async () => {
-  const empty = await call('/api/orders', { method: 'POST', body: { items: [], customer: { name: 'A', phone: '1' } } });
-  assert.equal(empty.status, 400);
-  const noAddress = await call('/api/orders', {
-    method: 'POST',
-    body: { items: [{ productId: 1, qty: 1 }], customer: { name: 'A', phone: '1' }, delivery: 'envio' },
-  });
-  assert.equal(noAddress.status, 400);
-  const mp = await call('/api/orders', {
-    method: 'POST',
-    body: { items: [{ productId: 1, qty: 1 }], customer: { name: 'A', phone: '1' }, delivery: 'retiro', payment: 'mercadopago' },
-  });
-  assert.equal(mp.status, 400);
+test('código incorrecto se rechaza y hay límite de intentos', async () => {
+  const wrong = await call('/api/unlock', { method: 'POST', body: { code: 'nope' }, ip: '10.0.0.9' });
+  assert.equal(wrong.status, 401);
+  let last;
+  for (let i = 0; i < 9; i++) last = await call('/api/unlock', { method: 'POST', body: { code: 'nope' }, ip: '10.0.0.9' });
+  assert.equal(last.status, 429);
 });
 
-test('registro, login y mis pedidos', async () => {
-  const reg = await call('/api/auth/register', { method: 'POST', body: { name: 'Luis', email: 'luis@test.com', password: '123456' } });
-  assert.equal(reg.status, 201);
-  assert.ok(reg.cookie);
+test('con el código correcto te anotás y recibís tu pase con la dirección', async () => {
+  const unlock = await call('/api/unlock', { method: 'POST', body: { code: ' Luna Llena ' }, ip: '10.0.0.1' });
+  assert.equal(unlock.status, 200);
+  const cookie = unlock.cookie;
 
-  const dup = await call('/api/auth/register', { method: 'POST', body: { name: 'Luis', email: 'luis@test.com', password: '123456' } });
-  assert.equal(dup.status, 409);
+  const events = await call('/api/events', { cookie });
+  assert.equal(events.status, 200);
+  assert.equal(events.body.events.length, 1);
+  assert.equal(events.body.events[0].address, undefined, 'la dirección no se muestra antes de anotarse');
 
-  await call('/api/orders', {
-    method: 'POST',
-    cookie: reg.cookie,
-    body: { items: [{ productId: 1, qty: 1 }], customer: { name: 'Luis', phone: '1' }, delivery: 'retiro' },
-  });
-  const mine = await call('/api/orders/mine', { cookie: reg.cookie });
-  assert.equal(mine.status, 200);
-  assert.equal(mine.body.orders.length, 1);
-
-  const bad = await call('/api/auth/login', { method: 'POST', body: { email: 'luis@test.com', password: 'mal' } });
-  assert.equal(bad.status, 401);
-
-  const forbidden = await call('/api/admin/orders', { cookie: reg.cookie });
-  assert.equal(forbidden.status, 403);
-});
-
-test('el admin gestiona productos, pedidos y ajustes', async () => {
-  const login = await call('/api/auth/login', { method: 'POST', body: { email: 'admin@test.com', password: 'secreto123' } });
-  assert.equal(login.status, 200);
-  const cookie = login.cookie;
-
-  const created = await call('/api/admin/products', { method: 'POST', cookie, body: { name: 'Nuevo', price: 99, categoryId: 1 } });
+  const created = await call('/api/entries', { method: 'POST', cookie, body: person() });
   assert.equal(created.status, 201);
-  const updated = await call(`/api/admin/products/${created.body.product.id}`, { method: 'PUT', cookie, body: { price: 80, active: false } });
-  assert.equal(updated.body.product.price, 80);
-  const catalog = await call('/api/catalog');
-  assert.ok(!catalog.body.products.some((p) => p.id === created.body.product.id));
+  assert.match(created.body.entry.pass, /^[A-Z2-9]{6}$/);
+  assert.ok(created.body.entry.event.address);
+  assert.equal(created.body.entry.guests, 1);
 
-  const orders = await call('/api/admin/orders', { cookie });
-  const patched = await call(`/api/admin/orders/${orders.body.orders[0].id}`, { method: 'PATCH', cookie, body: { status: 'preparando', paymentStatus: 'pagado' } });
-  assert.equal(patched.body.order.status, 'preparando');
-  assert.equal(patched.body.order.paymentStatus, 'pagado');
+  const again = await call('/api/entries', { method: 'POST', cookie, body: person({ name: 'Otra Persona' }) });
+  assert.equal(again.body.existing, true, 'el mismo DNI no se anota dos veces');
+  assert.equal(again.body.entry.pass, created.body.entry.pass);
 
-  const closed = await call('/api/admin/settings', { method: 'PUT', cookie, body: { isOpen: false, storeName: 'Prueba' } });
-  assert.equal(closed.body.settings.storeName, 'Prueba');
-  const rejected = await call('/api/orders', {
-    method: 'POST',
-    body: { items: [{ productId: 1, qty: 1 }], customer: { name: 'A', phone: '1' }, delivery: 'retiro' },
-  });
-  assert.equal(rejected.status, 400);
-  await call('/api/admin/settings', { method: 'PUT', cookie, body: { isOpen: true } });
-
-  const png = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
-  const upload = await call('/api/admin/upload', { method: 'POST', cookie, body: { dataUrl: png } });
-  assert.equal(upload.status, 201);
-  const img = await fetch(base + upload.body.url);
-  assert.equal(img.status, 200);
-
-  const badUpload = await call('/api/admin/upload', { method: 'POST', cookie, body: { dataUrl: 'data:text/html;base64,PGgxPg==' } });
-  assert.equal(badUpload.status, 400);
+  const view = await call(`/api/entries/${created.body.entry.id}?t=${created.body.entry.token}`);
+  assert.equal(view.status, 200);
+  assert.equal((await call(`/api/entries/${created.body.entry.id}?t=malo`)).status, 404);
 });
 
-test('una cookie de sesión manipulada no da acceso', async () => {
-  const res = await call('/api/auth/me', { cookie: 'sid=eyJ1aWQiOjF9.firmafalsa' });
-  assert.equal(res.body.user, null);
+test('valida edad y datos', async () => {
+  const { cookie } = await call('/api/unlock', { method: 'POST', body: { code: 'LUNALLENA' }, ip: '10.0.0.2' });
+  const young = await call('/api/entries', { method: 'POST', cookie, body: person({ dni: '50111222', birthdate: '2015-01-01' }) });
+  assert.equal(young.status, 400);
+  const noSurname = await call('/api/entries', { method: 'POST', cookie, body: person({ dni: '50111223', name: 'Sofía' }) });
+  assert.equal(noSurname.status, 400);
+});
+
+test('el panel pide contraseña y administra fiestas, códigos y la lista', async () => {
+  assert.equal((await call('/api/admin/events')).status, 401);
+  assert.equal((await call('/api/admin/login', { method: 'POST', body: { password: 'mal' }, ip: '10.0.0.3' })).status, 401);
+  const { cookie } = await call('/api/admin/login', { method: 'POST', body: { password: 'clave-panel' }, ip: '10.0.0.3' });
+
+  const code = await call('/api/admin/codes', { method: 'POST', cookie, body: { code: 'rrpp-juli', label: 'Juli', maxUses: 1 } });
+  assert.equal(code.status, 201);
+  assert.equal(code.body.code.code, 'RRPP-JULI');
+
+  const guest = await call('/api/unlock', { method: 'POST', body: { code: 'rrpp-juli' }, ip: '10.0.0.4' });
+  assert.equal(guest.status, 200);
+  await call('/api/entries', { method: 'POST', cookie: guest.cookie, body: person({ dni: '33444555', name: 'Juan Gómez' }) });
+  const used = await call('/api/unlock', { method: 'POST', body: { code: 'rrpp-juli' }, ip: '10.0.0.5' });
+  assert.equal(used.status, 410, 'el código con un solo uso ya no sirve');
+
+  const codes = await call('/api/admin/codes', { cookie });
+  assert.equal(codes.body.codes.find((c) => c.code === 'RRPP-JULI').signups, 1);
+
+  const list = await call('/api/admin/entries?eventId=1', { cookie });
+  assert.equal(list.body.entries.length, 2);
+  const juan = list.body.entries.find((e) => e.name === 'Juan Gómez');
+  assert.equal(juan.codeLabel, 'Juli');
+
+  const search = await call(`/api/admin/entries?eventId=1&q=${juan.pass.toLowerCase()}`, { cookie });
+  assert.equal(search.body.entries.length, 1);
+
+  const checked = await call(`/api/admin/entries/${juan.id}`, { method: 'PATCH', cookie, body: { checkedIn: true } });
+  assert.ok(checked.body.entry.checkedInAt);
+
+  const csv = await call('/api/admin/entries.csv?eventId=1', { cookie });
+  assert.equal(csv.status, 200);
+  assert.match(csv.text, /Juan Gómez/);
+
+  const closed = await call('/api/admin/events/1', { method: 'PUT', cookie, body: { listOpen: false } });
+  assert.equal(closed.body.event.listOpen, false);
+  const { cookie: c2 } = await call('/api/unlock', { method: 'POST', body: { code: 'lunallena' }, ip: '10.0.0.6' });
+  assert.equal((await call('/api/events', { cookie: c2 })).body.events.length, 0);
+
+  // Pausar el código general corta el acceso de quien entró con él.
+  const general = codes.body.codes.find((c) => c.code === 'LUNALLENA');
+  await call(`/api/admin/codes/${general.id}`, { method: 'PUT', cookie, body: { active: false } });
+  assert.equal((await call('/api/events', { cookie: c2 })).status, 401);
 });

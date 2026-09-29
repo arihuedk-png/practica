@@ -1,0 +1,204 @@
+/* Una sola estética oscura, a propósito: la puerta de un boliche de noche. */
+:root {
+  --bg: #1c1d1e;
+  --bg-deep: #141515;
+  --surface: #232425;
+  --line: #4a4b4c;
+  --line-soft: #333435;
+  --text: #ece7dc;
+  --muted: #9a968e;
+  --faint: #66645f;
+  --cream: #e6dfd2;
+  --cream-ink: #1a1a1a;
+  --ok: #8fc79a;
+  --bad: #e39a8f;
+  --font-script: "Mrs Saint Delafield", "Brush Script MT", cursive;
+  --font-body: "Manrope", "Helvetica Neue", Arial, sans-serif;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html, body { min-height: 100%; }
+
+body {
+  margin: 0;
+  background: radial-gradient(ellipse 90% 60% at 50% 0%, #26282a 0%, var(--bg) 55%, var(--bg-deep) 100%) fixed, var(--bg);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: 15px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+}
+
+button, input, select, textarea { font: inherit; color: inherit; }
+a { color: var(--cream); }
+[hidden] { display: none !important; }
+
+.wrap {
+  min-height: 100svh;
+  display: grid;
+  place-items: center;
+  padding: 48px 16px calc(48px + env(safe-area-inset-bottom, 0px));
+}
+
+.column { width: 100%; max-width: 384px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; }
+.center { text-align: center; }
+
+/* ---------- Logo ---------- */
+.logo {
+  font-family: var(--font-script);
+  font-weight: 400;
+  font-size: clamp(4.6rem, 22vw, 8rem);
+  line-height: 1;
+  margin: 0 0 12px;
+  color: #fff;
+  -webkit-text-stroke: .018em #fff; /* trazo más grueso, tipo marcador */
+  text-align: center;
+  transform: rotate(-4deg);
+  text-wrap: balance;
+  user-select: none;
+}
+.logo-sm { font-size: clamp(3.2rem, 14vw, 4.6rem); margin-bottom: 4px; }
+
+.lead { color: var(--muted); font-size: .93rem; text-align: center; margin: 0 0 20px; }
+.lead span { display: block; }
+
+.eyebrow {
+  font-size: .68rem;
+  letter-spacing: .28em;
+  text-transform: uppercase;
+  color: var(--faint);
+  text-align: center;
+  margin: 24px 0 0;
+}
+
+/* ---------- Campos y botones ---------- */
+.field {
+  width: 100%;
+  padding: 12px 14px;
+  background: rgba(255, 255, 255, .03);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  outline: none;
+  transition: border-color .2s, background .2s;
+}
+.field:focus { border-color: var(--cream); background: rgba(255, 255, 255, .05); }
+.field::placeholder { color: var(--faint); }
+
+.code-input {
+  text-align: center;
+  text-transform: uppercase;
+  letter-spacing: .32em;
+  font-size: .95rem;
+  padding: 13px 14px;
+}
+.code-input::placeholder { letter-spacing: .32em; color: var(--muted); opacity: .8; }
+
+.btn {
+  width: 100%;
+  border: 0;
+  border-radius: 6px;
+  padding: 13px 16px;
+  background: var(--cream);
+  color: var(--cream-ink);
+  font-weight: 500;
+  cursor: pointer;
+  transition: filter .2s, transform .06s;
+}
+.btn:hover { filter: brightness(1.05); }
+.btn:active { transform: scale(.99); }
+.btn:disabled { opacity: .5; cursor: default; }
+.btn:focus-visible, .link-btn:focus-visible { outline: 2px solid var(--cream); outline-offset: 3px; }
+.btn-ghost { background: transparent; color: var(--text); border: 1px solid var(--line); }
+
+.link-btn {
+  background: none; border: 0; padding: 4px; color: var(--muted); cursor: pointer;
+  font-size: .82rem; text-decoration: underline; text-underline-offset: 3px;
+}
+
+.message { min-height: 1.4em; margin: 0; text-align: center; font-size: .87rem; color: var(--bad); }
+
+label.lbl {
+  display: block;
+  font-size: .68rem;
+  letter-spacing: .2em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin: 0 0 6px;
+}
+.form-grid { display: grid; gap: 14px; }
+.row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.row2 > * { min-width: 0; }
+
+/* ---------- Fiesta ---------- */
+.event {
+  border-top: 1px solid var(--line-soft);
+  border-bottom: 1px solid var(--line-soft);
+  padding: 18px 0;
+  text-align: center;
+}
+.event-date {
+  font-size: .72rem;
+  letter-spacing: .26em;
+  text-transform: uppercase;
+  color: var(--cream);
+  margin: 0;
+}
+.event-name { font-size: 1.35rem; font-weight: 600; letter-spacing: .01em; margin: 6px 0; text-wrap: balance; }
+.event-desc { color: var(--muted); font-size: .9rem; margin: 0; }
+.event-meta { color: var(--faint); font-size: .78rem; margin: 10px 0 0; letter-spacing: .04em; }
+
+.picker { display: grid; gap: 8px; }
+.picker label {
+  display: flex; gap: 10px; align-items: center;
+  border: 1px solid var(--line-soft); border-radius: 6px; padding: 10px 12px; cursor: pointer;
+}
+.picker label:has(input:checked) { border-color: var(--cream); }
+.picker small { color: var(--muted); display: block; }
+
+/* ---------- Pase ---------- */
+.pass {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 24px 20px;
+  text-align: center;
+  background: linear-gradient(180deg, rgba(255, 255, 255, .04), rgba(255, 255, 255, .01));
+  position: relative;
+}
+.pass::before, .pass::after {
+  content: "";
+  position: absolute; top: 58%;
+  width: 18px; height: 18px; border-radius: 50%;
+  background: var(--bg);
+  border: 1px solid var(--line);
+}
+.pass::before { left: -10px; clip-path: inset(0 0 0 50%); }
+.pass::after { right: -10px; clip-path: inset(0 50% 0 0); }
+.pass-status { font-size: .68rem; letter-spacing: .3em; text-transform: uppercase; color: var(--ok); margin: 0; }
+.pass-name { font-size: 1.3rem; font-weight: 600; margin: 8px 0 2px; text-wrap: balance; }
+.pass-guests { color: var(--muted); font-size: .85rem; margin: 0; }
+.pass-code {
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 1.9rem;
+  letter-spacing: .3em;
+  margin: 20px 0 4px;
+  padding-left: .3em;
+  font-variant-numeric: tabular-nums;
+}
+.pass-divider { border: 0; border-top: 1px dashed var(--line); margin: 20px 0 16px; }
+.pass-detail { margin: 0; font-size: .9rem; }
+.pass-detail + .pass-detail { margin-top: 4px; }
+.pass-detail b { font-weight: 600; }
+.pass-hint { color: var(--muted); font-size: .82rem; margin: 14px 0 0; }
+
+/* ---------- Animaciones ---------- */
+.fade-in { animation: fade-in .6s ease-out both; }
+@keyframes fade-in { from { opacity: 0; transform: translateY(8px); } }
+.shake { animation: shake .4s; }
+@keyframes shake {
+  20%, 60% { transform: translateX(-6px); }
+  40%, 80% { transform: translateX(6px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .fade-in, .shake { animation: none; }
+}

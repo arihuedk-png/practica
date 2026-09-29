@@ -1,7 +1,7 @@
 {
-  "name": "mi-tienda",
+  "name": "lista-por-invitacion",
   "version": "1.0.0",
-  "description": "Tienda en línea con catálogo, carrito, pedidos por WhatsApp, pago con Mercado Pago, cuentas de usuario y panel de administración.",
+  "description": "Página de un boliche exclusivo: código secreto para entrar, lista de invitados y panel para la puerta.",
   "main": "server.js",
   "private": true,
   "scripts": {

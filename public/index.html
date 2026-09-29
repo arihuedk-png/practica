@@ -2,181 +2,86 @@
 <html lang="es">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Tienda</title>
-  <meta name="description" content="Haz tu pedido en línea">
-  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="/styles.css">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="theme-color" content="#1c1d1e">
+  <title>Solo por invitación</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600&family=Mrs+Saint+Delafield&display=swap">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="club.css">
 </head>
 <body>
-  <header class="topbar">
-    <div class="topbar-inner">
-      <a href="/" class="logo" id="logo">Tienda</a>
-      <button class="icon-btn" id="userBtn" title="Mi cuenta" aria-label="Mi cuenta">👤</button>
-      <button class="icon-btn cart-btn" id="cartBtn" title="Carrito" aria-label="Carrito">
-        🛒<span class="badge" id="cartCount" hidden>0</span>
-      </button>
-    </div>
-  </header>
+  <main class="wrap">
+    <!-- 1. Puerta: pedir el código -->
+    <section class="column fade-in" id="gate" hidden>
+      <h1 class="logo" data-club-name></h1>
+      <p class="lead"><span id="gateLine1"></span><span id="gateLine2"></span></p>
+      <form id="codeForm" class="column" autocomplete="off">
+        <input class="field code-input" id="code" name="code" placeholder="Escribí el código" aria-label="Código de invitación"
+               autocapitalize="characters" spellcheck="false" maxlength="30" required>
+        <button class="btn" type="submit" id="enterBtn">Entrar</button>
+        <p class="message" id="codeMessage" role="alert"></p>
+      </form>
+      <p class="eyebrow" id="footer"></p>
+    </section>
 
-  <section class="hero">
-    <div class="hero-inner">
-      <h1 id="storeName">Tienda</h1>
-      <p id="tagline"></p>
-      <div class="hero-meta">
-        <span class="pill" id="openPill"></span>
-        <span class="pill" id="hoursPill" hidden></span>
-        <span class="pill" id="deliveryPill" hidden></span>
-      </div>
-    </div>
-  </section>
+    <!-- 2. Adentro: fiesta y anotarse en lista -->
+    <section class="column fade-in" id="inside" hidden>
+      <h1 class="logo logo-sm" data-club-name></h1>
+      <div id="eventBox"></div>
+      <form id="listForm" class="form-grid" novalidate>
+        <div class="picker" id="eventPicker" hidden></div>
+        <div>
+          <label class="lbl" for="name">Nombre y apellido</label>
+          <input class="field" id="name" autocomplete="name" maxlength="80" required>
+        </div>
+        <div class="row2">
+          <div>
+            <label class="lbl" for="dni">DNI</label>
+            <input class="field" id="dni" inputmode="numeric" maxlength="12" required>
+          </div>
+          <div>
+            <label class="lbl" for="birthdate">Nacimiento</label>
+            <input class="field" id="birthdate" type="date" required>
+          </div>
+        </div>
+        <div class="row2">
+          <div>
+            <label class="lbl" for="phone">Celular</label>
+            <input class="field" id="phone" type="tel" autocomplete="tel" maxlength="30" required>
+          </div>
+          <div>
+            <label class="lbl" for="instagram">Instagram</label>
+            <input class="field" id="instagram" placeholder="@usuario" autocapitalize="none" spellcheck="false" maxlength="40">
+          </div>
+        </div>
+        <div>
+          <label class="lbl" for="guests">Acompañantes</label>
+          <select class="field" id="guests">
+            <option value="0">Voy solo/a</option>
+            <option value="1">+1</option>
+            <option value="2">+2</option>
+            <option value="3">+3</option>
+          </select>
+        </div>
+        <button class="btn" type="submit" id="listBtn">Anotarme en lista</button>
+        <p class="message" id="listMessage" role="alert"></p>
+      </form>
+      <p class="eyebrow">La dirección se revela al quedar en lista</p>
+    </section>
 
-  <main>
-    <div class="toolbar">
-      <input type="search" id="search" placeholder="Buscar productos…" aria-label="Buscar">
-      <div class="chips" id="chips"></div>
-    </div>
-    <div id="catalog"></div>
+    <!-- 3. Pase -->
+    <section class="column fade-in" id="passView" hidden>
+      <h1 class="logo logo-sm" data-club-name></h1>
+      <div class="pass" id="pass"></div>
+      <button class="btn btn-ghost" id="addAnother" type="button">Anotar a otra persona</button>
+      <p class="center"><button class="link-btn" id="forgetPass" type="button">No soy yo / borrar este pase</button></p>
+    </section>
   </main>
 
-  <footer id="footer"></footer>
-
-  <button class="btn float-cart" id="floatCart" hidden>
-    <span>Ver carrito (<span id="floatCount">0</span>)</span>
-    <span id="floatTotal">$0</span>
-  </button>
-
-  <!-- Detalle de producto -->
-  <div class="overlay" id="productModal" hidden>
-    <div class="modal" role="dialog" aria-modal="true">
-      <img class="modal-img" id="pmImg" alt="">
-      <div class="modal-body">
-        <h2 id="pmName" style="margin:0"></h2>
-        <p class="muted" id="pmDesc"></p>
-        <p class="price" id="pmPrice"></p>
-        <label for="pmNote">Aclaraciones (opcional)</label>
-        <textarea id="pmNote" maxlength="200" placeholder="Ej.: sin cebolla"></textarea>
-        <div class="row" style="margin-top:14px; align-items:center">
-          <div style="flex:0">
-            <div class="qty"><button id="pmMinus" aria-label="Menos">−</button><span id="pmQty">1</span><button id="pmPlus" aria-label="Más">+</button></div>
-          </div>
-          <button class="btn" id="pmAdd">Agregar</button>
-        </div>
-        <button class="btn btn-ghost btn-block" style="margin-top:10px" data-close>Cerrar</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- Carrito -->
-  <div class="overlay drawer-overlay" id="cartDrawer" hidden>
-    <aside class="drawer" role="dialog" aria-modal="true">
-      <div class="modal-head"><h2>Tu pedido</h2><button class="icon-btn" data-close aria-label="Cerrar">✕</button></div>
-      <div class="modal-body" id="cartItems"></div>
-      <div class="drawer-foot">
-        <div class="totals" id="cartTotals"></div>
-        <button class="btn btn-block" id="checkoutBtn">Continuar</button>
-      </div>
-    </aside>
-  </div>
-
-  <!-- Finalizar compra -->
-  <div class="overlay" id="checkoutModal" hidden>
-    <div class="modal" role="dialog" aria-modal="true">
-      <div class="modal-head"><h2>Finalizar pedido</h2><button class="icon-btn" data-close aria-label="Cerrar">✕</button></div>
-      <form class="modal-body" id="checkoutForm">
-        <label for="coName">Nombre</label>
-        <input type="text" id="coName" required maxlength="80" autocomplete="name">
-        <label for="coPhone">Teléfono / WhatsApp</label>
-        <input type="tel" id="coPhone" required maxlength="30" autocomplete="tel">
-
-        <label>Entrega</label>
-        <div class="options">
-          <label class="option"><input type="radio" name="delivery" value="envio" checked> Envío a domicilio <span class="muted" id="coFeeLabel"></span></label>
-          <label class="option"><input type="radio" name="delivery" value="retiro"> Retiro en el local</label>
-        </div>
-        <div id="addressBox">
-          <label for="coAddress">Dirección</label>
-          <input type="text" id="coAddress" maxlength="200" autocomplete="street-address" placeholder="Calle, número, colonia / barrio">
-        </div>
-
-        <label>Forma de pago</label>
-        <div class="options" id="paymentOptions">
-          <label class="option"><input type="radio" name="payment" value="efectivo" checked> 💵 Efectivo</label>
-          <label class="option"><input type="radio" name="payment" value="transferencia"> 🏦 Transferencia</label>
-          <label class="option" id="mpOption" hidden><input type="radio" name="payment" value="mercadopago"> 💳 Pagar en línea (Mercado Pago)</label>
-        </div>
-        <p class="muted" id="transferInfo" hidden></p>
-
-        <label for="coNotes">Notas para el pedido (opcional)</label>
-        <textarea id="coNotes" maxlength="300"></textarea>
-
-        <div class="totals" id="coTotals" style="margin-top:14px"></div>
-        <p class="error" id="coError"></p>
-        <button class="btn btn-block" type="submit" id="coSubmit">Confirmar pedido</button>
-      </form>
-    </div>
-  </div>
-
-  <!-- Pedido confirmado -->
-  <div class="overlay" id="doneModal" hidden>
-    <div class="modal" role="dialog" aria-modal="true">
-      <div class="modal-body" style="text-align:center">
-        <div style="font-size:3rem">✅</div>
-        <h2 id="doneTitle">¡Pedido recibido!</h2>
-        <p class="muted" id="doneText"></p>
-        <div style="display:grid; gap:8px; margin-top:14px">
-          <a class="btn btn-wa" id="doneWa" target="_blank" rel="noopener" hidden>Enviar pedido por WhatsApp</a>
-          <a class="btn" id="donePay" hidden>Pagar ahora</a>
-          <a class="btn btn-ghost" id="doneTrack">Ver estado del pedido</a>
-          <button class="btn btn-ghost" data-close>Seguir comprando</button>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Cuenta -->
-  <div class="overlay" id="accountModal" hidden>
-    <div class="modal" role="dialog" aria-modal="true">
-      <div class="modal-head"><h2 id="accountTitle">Mi cuenta</h2><button class="icon-btn" data-close aria-label="Cerrar">✕</button></div>
-      <div class="modal-body">
-        <div id="authBox">
-          <div class="tabs">
-            <button class="btn btn-sm" data-tab="login">Ingresar</button>
-            <button class="btn btn-sm btn-ghost" data-tab="register">Crear cuenta</button>
-          </div>
-          <form id="loginForm">
-            <label for="liEmail">Email</label>
-            <input type="email" id="liEmail" required autocomplete="email">
-            <label for="liPass">Contraseña</label>
-            <input type="password" id="liPass" required autocomplete="current-password">
-            <p class="error" id="liError"></p>
-            <button class="btn btn-block" type="submit">Ingresar</button>
-          </form>
-          <form id="registerForm" hidden>
-            <label for="reName">Nombre</label>
-            <input type="text" id="reName" required maxlength="80" autocomplete="name">
-            <label for="reEmail">Email</label>
-            <input type="email" id="reEmail" required autocomplete="email">
-            <label for="rePhone">Teléfono</label>
-            <input type="tel" id="rePhone" maxlength="30" autocomplete="tel">
-            <label for="rePass">Contraseña (mínimo 6 caracteres)</label>
-            <input type="password" id="rePass" required minlength="6" autocomplete="new-password">
-            <p class="error" id="reError"></p>
-            <button class="btn btn-block" type="submit">Crear cuenta</button>
-          </form>
-        </div>
-        <div id="profileBox" hidden>
-          <p>Hola, <b id="profileName"></b></p>
-          <p><a href="/admin" id="adminLink" hidden>Ir al panel de administración →</a></p>
-          <h3>Mis pedidos</h3>
-          <div id="myOrders"></div>
-          <button class="btn btn-ghost btn-block" id="logoutBtn">Cerrar sesión</button>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <script src="/common.js"></script>
-  <script src="/app.js"></script>
+  <script src="common.js"></script>
+  <script src="club.js"></script>
 </body>
 </html>

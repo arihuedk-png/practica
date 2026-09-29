@@ -1,22 +1,22 @@
 const express = require('express');
 const path = require('path');
-const fs = require('fs');
 const crypto = require('crypto');
-const { data, save, nextId, hashPassword, verifyPassword, UPLOADS_DIR } = require('./db');
+const { data, save, nextId, normalizeCode } = require('./db');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 const SECRET = process.env.SESSION_SECRET || data.secret;
-const MP_TOKEN = process.env.MP_ACCESS_TOKEN || '';
-const SESSION_DAYS = 30;
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'admin123';
+const ACCESS_HOURS = 6;
+const PASS_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 
-const ORDER_STATUSES = ['pendiente', 'confirmado', 'preparando', 'en_camino', 'entregado', 'cancelado'];
-const PAYMENT_METHODS = ['efectivo', 'transferencia', 'mercadopago'];
+if (!process.env.ADMIN_PASSWORD) {
+  console.warn('[aviso] Panel con contraseña por defecto (admin123). Cambiala con ADMIN_PASSWORD.');
+}
 
 app.set('trust proxy', 1);
-app.use(express.json({ limit: '6mb' }));
+app.use(express.json({ limit: '100kb' }));
 app.use(express.static(path.join(__dirname, 'public')));
-app.use('/uploads', express.static(UPLOADS_DIR, { maxAge: '7d' }));
 
 // ---------- Utilidades ----------
 
@@ -27,19 +27,14 @@ class HttpError extends Error {
   }
 }
 
-const str = (v, max = 500) => (typeof v === 'string' ? v.trim().slice(0, max) : '');
+const str = (v, max = 200) => (typeof v === 'string' ? v.trim().slice(0, max) : '');
 const num = (v) => (Number.isFinite(Number(v)) ? Number(v) : NaN);
-const money = (v) => Math.round(v * 100) / 100;
 
-function publicUser(u) {
-  return u && { id: u.id, name: u.name, email: u.email, phone: u.phone, role: u.role };
+function safeEqual(a, b) {
+  const ha = crypto.createHash('sha256').update(String(a)).digest();
+  const hb = crypto.createHash('sha256').update(String(b)).digest();
+  return crypto.timingSafeEqual(ha, hb);
 }
-
-function baseUrl(req) {
-  return process.env.PUBLIC_URL || `${req.protocol}://${req.get('host')}`;
-}
-
-// ---------- Sesiones (cookie firmada con HMAC) ----------
 
 function sign(payload) {
   const body = Buffer.from(JSON.stringify(payload)).toString('base64url');
@@ -51,7 +46,7 @@ function unsign(token) {
   const [body, mac] = String(token || '').split('.');
   if (!body || !mac) return null;
   const expected = crypto.createHmac('sha256', SECRET).update(body).digest('base64url');
-  if (mac.length !== expected.length || !crypto.timingSafeEqual(Buffer.from(mac), Buffer.from(expected))) return null;
+  if (!safeEqual(mac, expected)) return null;
   try {
     const payload = JSON.parse(Buffer.from(body, 'base64url').toString());
     return payload.exp > Date.now() ? payload : null;
@@ -61,363 +56,345 @@ function unsign(token) {
 }
 
 function getCookie(req, name) {
-  const cookies = req.headers.cookie || '';
-  for (const part of cookies.split(';')) {
+  for (const part of (req.headers.cookie || '').split(';')) {
     const [k, ...v] = part.trim().split('=');
     if (k === name) return decodeURIComponent(v.join('='));
   }
   return null;
 }
 
-function setSession(req, res, user) {
-  const maxAge = SESSION_DAYS * 24 * 3600;
-  const token = sign({ uid: user.id, exp: Date.now() + maxAge * 1000 });
+function setCookie(req, res, name, value, maxAgeSeconds) {
   const secure = req.secure ? '; Secure' : '';
-  res.setHeader('Set-Cookie', `sid=${token}; HttpOnly; Path=/; SameSite=Lax; Max-Age=${maxAge}${secure}`);
+  res.append('Set-Cookie', `${name}=${value}; HttpOnly; Path=/; SameSite=Lax; Max-Age=${maxAgeSeconds}${secure}`);
 }
 
-app.use((req, _res, next) => {
-  const session = unsign(getCookie(req, 'sid'));
-  req.user = session ? data.users.find((u) => u.id === session.uid) || null : null;
+// Límite de intentos por IP (para que el código no se pueda adivinar probando).
+function rateLimiter(max, windowMinutes) {
+  const hits = new Map();
+  return {
+    check(ip) {
+      const now = Date.now();
+      const entry = hits.get(ip);
+      if (!entry || now > entry.reset) {
+        hits.set(ip, { count: 1, reset: now + windowMinutes * 60 * 1000 });
+        return;
+      }
+      entry.count += 1;
+      if (entry.count > max) throw new HttpError(429, 'Demasiados intentos. Probá de nuevo en unos minutos.');
+    },
+    clear(ip) {
+      hits.delete(ip);
+    },
+  };
+}
+
+const unlockLimiter = rateLimiter(8, 15);
+const adminLimiter = rateLimiter(10, 15);
+
+function passCode() {
+  const bytes = crypto.randomBytes(6);
+  return [...bytes].map((b) => PASS_ALPHABET[b % PASS_ALPHABET.length]).join('');
+}
+
+function publicEvent(event) {
+  const taken = data.entries.filter((e) => e.eventId === event.id).length;
+  return {
+    id: event.id,
+    name: event.name,
+    date: event.date,
+    description: event.description,
+    listOpen: event.listOpen && (!event.capacity || taken < event.capacity),
+    full: Boolean(event.capacity) && taken >= event.capacity,
+  };
+}
+
+function passView(entry) {
+  const event = data.events.find((e) => e.id === entry.eventId);
+  return {
+    id: entry.id,
+    token: entry.token,
+    pass: entry.pass,
+    name: entry.name,
+    guests: entry.guests,
+    checkedIn: Boolean(entry.checkedInAt),
+    event: event && { name: event.name, date: event.date, description: event.description, address: event.address },
+  };
+}
+
+// ---------- Acceso con código ----------
+
+function access(req) {
+  const session = unsign(getCookie(req, 'pase'));
+  if (!session) return null;
+  const code = data.codes.find((c) => c.id === session.codeId && c.active);
+  return code ? { code } : null;
+}
+
+function requireAccess(req, _res, next) {
+  req.access = access(req);
+  if (!req.access) throw new HttpError(401, 'Necesitás el código para entrar.');
   next();
-});
-
-function requireUser(req, _res, next) {
-  if (!req.user) throw new HttpError(401, 'Debes iniciar sesión');
-  next();
 }
-
-function requireAdmin(req, _res, next) {
-  if (!req.user || req.user.role !== 'admin') throw new HttpError(403, 'Solo para administradores');
-  next();
-}
-
-// Límite simple de intentos de login por IP.
-const loginAttempts = new Map();
-function checkLoginRate(ip) {
-  const now = Date.now();
-  const entry = loginAttempts.get(ip) || { count: 0, reset: now + 15 * 60 * 1000 };
-  if (now > entry.reset) Object.assign(entry, { count: 0, reset: now + 15 * 60 * 1000 });
-  entry.count += 1;
-  loginAttempts.set(ip, entry);
-  if (entry.count > 10) throw new HttpError(429, 'Demasiados intentos. Intenta de nuevo en unos minutos.');
-}
-
-// ---------- API pública ----------
 
 app.get('/api/config', (_req, res) => {
-  const { transferInfo, ...rest } = data.settings;
-  res.json({ ...rest, transferInfo, mercadoPago: Boolean(MP_TOKEN) });
+  const { clubName, gateLine1, gateLine2, footer, instagram } = data.settings;
+  res.json({ clubName, gateLine1, gateLine2, footer, instagram });
 });
 
-app.get('/api/catalog', (_req, res) => {
-  const categories = [...data.categories].sort((a, b) => a.order - b.order);
-  const products = data.products.filter((p) => p.active);
-  res.json({ categories, products });
-});
-
-// ---------- Autenticación ----------
-
-app.post('/api/auth/register', (req, res) => {
-  const name = str(req.body.name, 80);
-  const email = str(req.body.email, 120).toLowerCase();
-  const phone = str(req.body.phone, 30);
-  const password = typeof req.body.password === 'string' ? req.body.password : '';
-  if (!name || !/^\S+@\S+\.\S+$/.test(email)) throw new HttpError(400, 'Nombre y email válidos son obligatorios');
-  if (password.length < 6) throw new HttpError(400, 'La contraseña debe tener al menos 6 caracteres');
-  if (data.users.some((u) => u.email === email)) throw new HttpError(409, 'Ya existe una cuenta con ese email');
-
-  const user = { id: nextId('users'), name, email, phone, role: 'cliente', ...hashPassword(password), createdAt: new Date().toISOString() };
-  data.users.push(user);
+app.post('/api/unlock', (req, res) => {
+  unlockLimiter.check(req.ip);
+  const wanted = normalizeCode(req.body.code);
+  const code = wanted && data.codes.find((c) => c.active && safeEqual(c.code, wanted));
+  if (!code) throw new HttpError(401, 'Ese código no es.');
+  if (code.maxUses && code.uses >= code.maxUses) throw new HttpError(410, 'Ese código ya no está disponible.');
+  code.uses += 1;
   save();
-  setSession(req, res, user);
-  res.status(201).json({ user: publicUser(user) });
-});
-
-app.post('/api/auth/login', (req, res) => {
-  checkLoginRate(req.ip);
-  const email = str(req.body.email, 120).toLowerCase();
-  const password = typeof req.body.password === 'string' ? req.body.password : '';
-  const user = data.users.find((u) => u.email === email);
-  if (!user || !verifyPassword(password, user)) throw new HttpError(401, 'Email o contraseña incorrectos');
-  loginAttempts.delete(req.ip);
-  setSession(req, res, user);
-  res.json({ user: publicUser(user) });
-});
-
-app.post('/api/auth/logout', (_req, res) => {
-  res.setHeader('Set-Cookie', 'sid=; HttpOnly; Path=/; SameSite=Lax; Max-Age=0');
+  unlockLimiter.clear(req.ip);
+  setCookie(req, res, 'pase', sign({ codeId: code.id, exp: Date.now() + ACCESS_HOURS * 3600 * 1000 }), ACCESS_HOURS * 3600);
   res.json({ ok: true });
 });
 
-app.get('/api/auth/me', (req, res) => {
-  res.json({ user: publicUser(req.user) });
+app.get('/api/events', requireAccess, (_req, res) => {
+  const events = data.events
+    .filter((e) => e.listOpen)
+    .sort((a, b) => a.date.localeCompare(b.date))
+    .map(publicEvent);
+  res.json({ events, minAge: data.settings.minAge });
 });
 
-// ---------- Pedidos ----------
-
-function whatsappLink(order, req) {
-  const s = data.settings;
-  if (!s.whatsapp) return null;
-  const fmt = (v) => `$${v.toLocaleString('es', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
-  const lines = [
-    `*Nuevo pedido #${order.id}* - ${s.storeName}`,
-    '',
-    ...order.items.map((i) => `• ${i.qty} x ${i.name} — ${fmt(i.price * i.qty)}${i.note ? `\n   _${i.note}_` : ''}`),
-    '',
-    `Subtotal: ${fmt(order.subtotal)}`,
-    order.deliveryFee ? `Envío: ${fmt(order.deliveryFee)}` : null,
-    `*Total: ${fmt(order.total)}*`,
-    '',
-    `Nombre: ${order.customer.name}`,
-    `Teléfono: ${order.customer.phone}`,
-    order.delivery === 'envio' ? `Entrega a domicilio: ${order.customer.address}` : 'Retiro en el local',
-    `Pago: ${order.payment}`,
-    order.notes ? `Notas: ${order.notes}` : null,
-    '',
-    `Seguimiento: ${baseUrl(req)}/pedido.html?id=${order.id}&t=${order.token}`,
-  ].filter((l) => l !== null);
-  const phone = s.whatsapp.replace(/\D/g, '');
-  return `https://wa.me/${phone}?text=${encodeURIComponent(lines.join('\n'))}`;
+function ageOn(birthdate, when) {
+  const [y, m, d] = birthdate.split('-').map(Number);
+  const ref = new Date(when);
+  let age = ref.getFullYear() - y;
+  if (ref.getMonth() + 1 < m || (ref.getMonth() + 1 === m && ref.getDate() < d)) age -= 1;
+  return age;
 }
 
-function orderView(order, req) {
-  const { token, ...rest } = order;
-  return { ...rest, trackingUrl: `/pedido.html?id=${order.id}&t=${token}`, whatsappUrl: whatsappLink(order, req) };
-}
+app.post('/api/entries', requireAccess, (req, res) => {
+  const event = data.events.find((e) => e.id === num(req.body.eventId));
+  if (!event || !publicEvent(event).listOpen) throw new HttpError(400, 'La lista para esta fecha está cerrada.');
 
-async function createMercadoPagoPreference(order, req) {
-  const base = baseUrl(req);
-  const back = `${base}/pedido.html?id=${order.id}&t=${order.token}`;
-  const items = order.items.map((i) => ({
-    title: i.name,
-    quantity: i.qty,
-    unit_price: i.price,
-    currency_id: data.settings.currency,
-  }));
-  if (order.deliveryFee) {
-    items.push({ title: 'Envío', quantity: 1, unit_price: order.deliveryFee, currency_id: data.settings.currency });
+  const name = str(req.body.name, 80);
+  const dni = str(req.body.dni, 20).replace(/[.\s-]/g, '').toUpperCase();
+  const birthdate = str(req.body.birthdate, 10);
+  const instagram = str(req.body.instagram, 40).replace(/^@+/, '');
+  const phone = str(req.body.phone, 30);
+  const guests = Math.max(0, Math.min(3, Math.floor(num(req.body.guests)) || 0));
+
+  if (name.split(/\s+/).length < 2) throw new HttpError(400, 'Poné tu nombre y apellido.');
+  if (!/^[A-Z0-9]{6,12}$/.test(dni)) throw new HttpError(400, 'El DNI no parece válido.');
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(birthdate)) throw new HttpError(400, 'Completá tu fecha de nacimiento.');
+  if (ageOn(birthdate, event.date) < data.settings.minAge) {
+    throw new HttpError(400, `Tenés que tener ${data.settings.minAge} años o más el día de la fiesta.`);
   }
-  const response = await fetch('https://api.mercadopago.com/checkout/preferences', {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${MP_TOKEN}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      items,
-      external_reference: String(order.id),
-      back_urls: { success: back, failure: back, pending: back },
-      auto_return: 'approved',
-      notification_url: `${base}/api/payments/webhook`,
-    }),
-  });
-  if (!response.ok) {
-    console.error('Mercado Pago error', response.status, await response.text());
-    return null;
-  }
-  const pref = await response.json();
-  return pref.init_point;
-}
+  if (!phone) throw new HttpError(400, 'Dejanos un celular.');
 
-app.post('/api/orders', async (req, res) => {
-  const s = data.settings;
-  if (!s.isOpen) throw new HttpError(400, 'La tienda está cerrada en este momento');
+  const existing = data.entries.find((e) => e.eventId === event.id && e.dni === dni);
+  if (existing) return res.json({ entry: passView(existing), existing: true });
 
-  const rawItems = Array.isArray(req.body.items) ? req.body.items.slice(0, 100) : [];
-  const items = [];
-  for (const raw of rawItems) {
-    const product = data.products.find((p) => p.id === num(raw.productId) && p.active);
-    const qty = Math.floor(num(raw.qty));
-    if (!product) throw new HttpError(400, 'Un producto del carrito ya no está disponible');
-    if (!(qty >= 1 && qty <= 99)) throw new HttpError(400, 'Cantidad inválida');
-    items.push({ productId: product.id, name: product.name, price: product.price, qty, note: str(raw.note, 200) });
-  }
-  if (!items.length) throw new HttpError(400, 'El carrito está vacío');
+  const taken = data.entries.filter((e) => e.eventId === event.id).length;
+  if (event.capacity && taken >= event.capacity) throw new HttpError(400, 'La lista se llenó.');
 
-  const customer = {
-    name: str(req.body.customer?.name, 80),
-    phone: str(req.body.customer?.phone, 30),
-    address: str(req.body.customer?.address, 200),
-  };
-  const delivery = req.body.delivery === 'envio' ? 'envio' : 'retiro';
-  const payment = PAYMENT_METHODS.includes(req.body.payment) ? req.body.payment : 'efectivo';
-  if (!customer.name || !customer.phone) throw new HttpError(400, 'Nombre y teléfono son obligatorios');
-  if (delivery === 'envio' && !customer.address) throw new HttpError(400, 'Indica la dirección de entrega');
-  if (payment === 'mercadopago' && !MP_TOKEN) throw new HttpError(400, 'El pago en línea no está disponible');
+  let pass;
+  do pass = passCode(); while (data.entries.some((e) => e.pass === pass));
 
-  const subtotal = money(items.reduce((sum, i) => sum + i.price * i.qty, 0));
-  if (s.minOrder && subtotal < s.minOrder) throw new HttpError(400, `El pedido mínimo es de $${s.minOrder}`);
-  const deliveryFee = delivery === 'envio' ? money(s.deliveryFee || 0) : 0;
-
-  const order = {
-    id: nextId('orders'),
+  const entry = {
+    id: nextId('entries'),
     token: crypto.randomBytes(12).toString('hex'),
-    userId: req.user?.id || null,
-    items,
-    customer,
-    delivery,
-    payment,
-    paymentStatus: 'pendiente',
-    notes: str(req.body.notes, 300),
-    subtotal,
-    deliveryFee,
-    total: money(subtotal + deliveryFee),
-    status: 'pendiente',
+    pass,
+    eventId: event.id,
+    codeId: req.access.code.id,
+    name,
+    dni,
+    birthdate,
+    instagram,
+    phone,
+    guests,
+    checkedInAt: null,
     createdAt: new Date().toISOString(),
   };
-  data.orders.push(order);
+  data.entries.push(entry);
   save();
-
-  let paymentUrl = null;
-  if (payment === 'mercadopago') {
-    paymentUrl = await createMercadoPagoPreference(order, req);
-  }
-  res.status(201).json({ order: orderView(order, req), paymentUrl });
+  res.status(201).json({ entry: passView(entry) });
 });
 
-app.get('/api/orders/mine', requireUser, (req, res) => {
-  const orders = data.orders.filter((o) => o.userId === req.user.id).reverse().map((o) => orderView(o, req));
-  res.json({ orders });
+// Para volver a ver el pase (se guarda en el teléfono de quien se anotó).
+app.get('/api/entries/:id', (req, res) => {
+  const entry = data.entries.find((e) => e.id === num(req.params.id));
+  if (!entry || !safeEqual(entry.token, String(req.query.t || ''))) throw new HttpError(404, 'No encontramos ese pase.');
+  res.json({ entry: passView(entry) });
 });
 
-app.get('/api/orders/:id', (req, res) => {
-  const order = data.orders.find((o) => o.id === num(req.params.id));
-  const token = String(req.query.t || '');
-  const allowed = order && (
-    (token.length === order.token.length && crypto.timingSafeEqual(Buffer.from(token), Buffer.from(order.token)))
-    || (req.user && (req.user.role === 'admin' || req.user.id === order.userId))
-  );
-  if (!allowed) throw new HttpError(404, 'Pedido no encontrado');
-  res.json({ order: orderView(order, req) });
+// ---------- Panel ----------
+
+const ADMIN_HOURS = 12;
+
+app.post('/api/admin/login', (req, res) => {
+  adminLimiter.check(req.ip);
+  if (!safeEqual(String(req.body.password || ''), ADMIN_PASSWORD)) throw new HttpError(401, 'Contraseña incorrecta.');
+  adminLimiter.clear(req.ip);
+  setCookie(req, res, 'admin', sign({ admin: true, exp: Date.now() + ADMIN_HOURS * 3600 * 1000 }), ADMIN_HOURS * 3600);
+  res.json({ ok: true });
 });
 
-// Notificaciones de Mercado Pago: se consulta el pago en su API para confirmarlo.
-app.post('/api/payments/webhook', async (req, res) => {
-  res.sendStatus(200);
-  const type = req.body?.type || req.query.type || req.query.topic;
-  const paymentId = req.body?.data?.id || req.query['data.id'] || req.query.id;
-  if (!MP_TOKEN || type !== 'payment' || !paymentId) return;
-  try {
-    const r = await fetch(`https://api.mercadopago.com/v1/payments/${encodeURIComponent(paymentId)}`, {
-      headers: { Authorization: `Bearer ${MP_TOKEN}` },
-    });
-    if (!r.ok) return;
-    const payment = await r.json();
-    const order = data.orders.find((o) => String(o.id) === String(payment.external_reference));
-    if (!order) return;
-    order.paymentStatus = payment.status === 'approved' ? 'pagado' : payment.status;
-    order.paymentId = String(payment.id);
-    if (order.paymentStatus === 'pagado' && order.status === 'pendiente') order.status = 'confirmado';
-    save();
-  } catch (err) {
-    console.error('Error procesando webhook de Mercado Pago', err);
-  }
+app.post('/api/admin/logout', (req, res) => {
+  setCookie(req, res, 'admin', '', 0);
+  res.json({ ok: true });
 });
-
-// ---------- Administración ----------
 
 const admin = express.Router();
-admin.use(requireAdmin);
-
-admin.get('/stats', (_req, res) => {
-  const today = new Date().toISOString().slice(0, 10);
-  const todays = data.orders.filter((o) => o.createdAt.startsWith(today) && o.status !== 'cancelado');
-  res.json({
-    ordersToday: todays.length,
-    salesToday: money(todays.reduce((s, o) => s + o.total, 0)),
-    pending: data.orders.filter((o) => o.status === 'pendiente').length,
-    products: data.products.length,
-    customers: data.users.filter((u) => u.role === 'cliente').length,
-  });
+admin.use((req, _res, next) => {
+  if (!unsign(getCookie(req, 'admin'))?.admin) throw new HttpError(401, 'Iniciá sesión.');
+  next();
 });
 
-admin.get('/orders', (req, res) => {
-  let orders = [...data.orders].reverse();
-  if (req.query.status) orders = orders.filter((o) => o.status === req.query.status);
-  res.json({ orders: orders.slice(0, 200).map((o) => orderView(o, req)), statuses: ORDER_STATUSES });
-});
+admin.get('/me', (_req, res) => res.json({ ok: true }));
 
-admin.patch('/orders/:id', (req, res) => {
-  const order = data.orders.find((o) => o.id === num(req.params.id));
-  if (!order) throw new HttpError(404, 'Pedido no encontrado');
-  if (req.body.status !== undefined) {
-    if (!ORDER_STATUSES.includes(req.body.status)) throw new HttpError(400, 'Estado inválido');
-    order.status = req.body.status;
-  }
-  if (req.body.paymentStatus !== undefined) {
-    order.paymentStatus = req.body.paymentStatus === 'pagado' ? 'pagado' : 'pendiente';
-  }
-  save();
-  res.json({ order: orderView(order, req) });
-});
-
-function productFromBody(body, existing = {}) {
-  const name = str(body.name ?? existing.name, 100);
-  const price = num(body.price ?? existing.price);
-  const categoryId = num(body.categoryId ?? existing.categoryId);
-  if (!name) throw new HttpError(400, 'El nombre es obligatorio');
-  if (!(price >= 0)) throw new HttpError(400, 'Precio inválido');
-  if (!data.categories.some((c) => c.id === categoryId)) throw new HttpError(400, 'Categoría inválida');
+function eventStats(event) {
+  const entries = data.entries.filter((e) => e.eventId === event.id);
   return {
-    name,
-    description: str(body.description ?? existing.description, 500),
-    price: money(price),
-    categoryId,
-    image: str(body.image ?? existing.image, 300),
-    active: body.active === undefined ? existing.active ?? true : Boolean(body.active),
-    featured: body.featured === undefined ? existing.featured ?? false : Boolean(body.featured),
+    ...event,
+    entries: entries.length,
+    people: entries.reduce((n, e) => n + 1 + e.guests, 0),
+    checkedIn: entries.filter((e) => e.checkedInAt).length,
   };
 }
 
-admin.get('/products', (_req, res) => res.json({ products: data.products }));
-
-admin.post('/products', (req, res) => {
-  const product = { id: nextId('products'), ...productFromBody(req.body), createdAt: new Date().toISOString() };
-  data.products.push(product);
-  save();
-  res.status(201).json({ product });
+admin.get('/events', (_req, res) => {
+  res.json({ events: [...data.events].sort((a, b) => b.date.localeCompare(a.date)).map(eventStats) });
 });
 
-admin.put('/products/:id', (req, res) => {
-  const product = data.products.find((p) => p.id === num(req.params.id));
-  if (!product) throw new HttpError(404, 'Producto no encontrado');
-  Object.assign(product, productFromBody(req.body, product));
+function eventFromBody(body, existing = {}) {
+  const name = str(body.name ?? existing.name, 80);
+  const date = str(body.date ?? existing.date, 16);
+  if (!name) throw new HttpError(400, 'La fiesta necesita un nombre.');
+  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(date)) throw new HttpError(400, 'Fecha y hora inválidas.');
+  const capacity = Math.max(0, Math.floor(num(body.capacity ?? existing.capacity)) || 0);
+  return {
+    name,
+    date,
+    description: str(body.description ?? existing.description, 600),
+    address: str(body.address ?? existing.address, 200),
+    capacity,
+    listOpen: body.listOpen === undefined ? existing.listOpen ?? true : Boolean(body.listOpen),
+  };
+}
+
+admin.post('/events', (req, res) => {
+  const event = { id: nextId('events'), ...eventFromBody(req.body), createdAt: new Date().toISOString() };
+  data.events.push(event);
   save();
-  res.json({ product });
+  res.status(201).json({ event: eventStats(event) });
 });
 
-admin.delete('/products/:id', (req, res) => {
-  const index = data.products.findIndex((p) => p.id === num(req.params.id));
-  if (index === -1) throw new HttpError(404, 'Producto no encontrado');
-  data.products.splice(index, 1);
+admin.put('/events/:id', (req, res) => {
+  const event = data.events.find((e) => e.id === num(req.params.id));
+  if (!event) throw new HttpError(404, 'Fiesta no encontrada.');
+  Object.assign(event, eventFromBody(req.body, event));
   save();
-  res.json({ ok: true });
+  res.json({ event: eventStats(event) });
 });
 
-admin.post('/categories', (req, res) => {
-  const name = str(req.body.name, 60);
-  if (!name) throw new HttpError(400, 'El nombre es obligatorio');
-  const category = { id: nextId('categories'), name, order: num(req.body.order) || data.categories.length + 1 };
-  data.categories.push(category);
-  save();
-  res.status(201).json({ category });
-});
-
-admin.put('/categories/:id', (req, res) => {
-  const category = data.categories.find((c) => c.id === num(req.params.id));
-  if (!category) throw new HttpError(404, 'Categoría no encontrada');
-  if (req.body.name !== undefined) category.name = str(req.body.name, 60) || category.name;
-  if (req.body.order !== undefined && Number.isFinite(num(req.body.order))) category.order = num(req.body.order);
-  save();
-  res.json({ category });
-});
-
-admin.delete('/categories/:id', (req, res) => {
+admin.delete('/events/:id', (req, res) => {
   const id = num(req.params.id);
-  if (data.products.some((p) => p.categoryId === id)) throw new HttpError(400, 'La categoría tiene productos; muévelos o bórralos primero');
-  const index = data.categories.findIndex((c) => c.id === id);
-  if (index === -1) throw new HttpError(404, 'Categoría no encontrada');
-  data.categories.splice(index, 1);
+  const index = data.events.findIndex((e) => e.id === id);
+  if (index === -1) throw new HttpError(404, 'Fiesta no encontrada.');
+  data.events.splice(index, 1);
+  data.entries = data.entries.filter((e) => e.eventId !== id);
   save();
   res.json({ ok: true });
+});
+
+function codeStats(code) {
+  return { ...code, signups: data.entries.filter((e) => e.codeId === code.id).length };
+}
+
+admin.get('/codes', (_req, res) => res.json({ codes: data.codes.map(codeStats) }));
+
+function codeFromBody(body, existing = {}) {
+  const code = normalizeCode(body.code ?? existing.code);
+  if (!/^[A-Z0-9ÑÁÉÍÓÚÜ_-]{3,30}$/.test(code)) throw new HttpError(400, 'El código tiene que tener entre 3 y 30 letras o números, sin espacios.');
+  if (data.codes.some((c) => c.code === code && c.id !== existing.id)) throw new HttpError(409, 'Ya existe ese código.');
+  return {
+    code,
+    label: str(body.label ?? existing.label, 60),
+    maxUses: Math.max(0, Math.floor(num(body.maxUses ?? existing.maxUses)) || 0),
+    active: body.active === undefined ? existing.active ?? true : Boolean(body.active),
+  };
+}
+
+admin.post('/codes', (req, res) => {
+  const code = { id: nextId('codes'), ...codeFromBody(req.body), uses: 0 };
+  data.codes.push(code);
+  save();
+  res.status(201).json({ code: codeStats(code) });
+});
+
+admin.put('/codes/:id', (req, res) => {
+  const code = data.codes.find((c) => c.id === num(req.params.id));
+  if (!code) throw new HttpError(404, 'Código no encontrado.');
+  Object.assign(code, codeFromBody(req.body, code));
+  save();
+  res.json({ code: codeStats(code) });
+});
+
+admin.delete('/codes/:id', (req, res) => {
+  const index = data.codes.findIndex((c) => c.id === num(req.params.id));
+  if (index === -1) throw new HttpError(404, 'Código no encontrado.');
+  data.codes.splice(index, 1);
+  save();
+  res.json({ ok: true });
+});
+
+function entryView(e) {
+  const code = data.codes.find((c) => c.id === e.codeId);
+  const { token, ...rest } = e;
+  return { ...rest, codeLabel: code ? code.label || code.code : '—' };
+}
+
+admin.get('/entries', (req, res) => {
+  const eventId = num(req.query.eventId);
+  const q = str(req.query.q, 60).toLowerCase();
+  let entries = data.entries.filter((e) => e.eventId === eventId);
+  if (q) {
+    entries = entries.filter((e) => [e.name, e.dni, e.pass, e.instagram].some((f) => f.toLowerCase().includes(q)));
+  }
+  res.json({ entries: entries.sort((a, b) => a.name.localeCompare(b.name, 'es')).map(entryView) });
+});
+
+admin.patch('/entries/:id', (req, res) => {
+  const entry = data.entries.find((e) => e.id === num(req.params.id));
+  if (!entry) throw new HttpError(404, 'No está en la lista.');
+  entry.checkedInAt = req.body.checkedIn ? new Date().toISOString() : null;
+  save();
+  res.json({ entry: entryView(entry) });
+});
+
+admin.delete('/entries/:id', (req, res) => {
+  const index = data.entries.findIndex((e) => e.id === num(req.params.id));
+  if (index === -1) throw new HttpError(404, 'No está en la lista.');
+  data.entries.splice(index, 1);
+  save();
+  res.json({ ok: true });
+});
+
+function csvCell(value) {
+  let s = String(value ?? '');
+  if (/^[=+\-@]/.test(s)) s = `'${s}`; // evita fórmulas al abrir en Excel
+  return /[",\n;]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
+
+admin.get('/entries.csv', (req, res) => {
+  const event = data.events.find((e) => e.id === num(req.query.eventId));
+  if (!event) throw new HttpError(404, 'Fiesta no encontrada.');
+  const rows = [['Nombre', 'DNI', 'Nacimiento', 'Instagram', 'Celular', 'Acompañantes', 'Código de ingreso', 'Vino por', 'Ingresó', 'Anotado']];
+  for (const e of data.entries.filter((x) => x.eventId === event.id).map(entryView)) {
+    rows.push([e.name, e.dni, e.birthdate, e.instagram && `@${e.instagram}`, e.phone, e.guests, e.pass, e.codeLabel, e.checkedInAt ? 'Sí' : 'No', e.createdAt]);
+  }
+  const filename = `lista-${event.date.slice(0, 10)}.csv`;
+  res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+  res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+  res.send('﻿' + rows.map((r) => r.map(csvCell).join(',')).join('\n'));
 });
 
 admin.get('/settings', (_req, res) => res.json({ settings: data.settings }));
@@ -425,36 +402,15 @@ admin.get('/settings', (_req, res) => res.json({ settings: data.settings }));
 admin.put('/settings', (req, res) => {
   const s = data.settings;
   const b = req.body;
-  if (b.storeName !== undefined) s.storeName = str(b.storeName, 60) || s.storeName;
-  if (b.tagline !== undefined) s.tagline = str(b.tagline, 120);
-  if (b.whatsapp !== undefined) s.whatsapp = str(b.whatsapp, 30);
-  if (b.currency !== undefined) s.currency = str(b.currency, 3).toUpperCase() || s.currency;
-  if (b.deliveryFee !== undefined) s.deliveryFee = Math.max(0, num(b.deliveryFee) || 0);
-  if (b.minOrder !== undefined) s.minOrder = Math.max(0, num(b.minOrder) || 0);
-  if (b.isOpen !== undefined) s.isOpen = Boolean(b.isOpen);
-  if (b.hours !== undefined) s.hours = str(b.hours, 120);
-  if (b.address !== undefined) s.address = str(b.address, 200);
-  if (b.transferInfo !== undefined) s.transferInfo = str(b.transferInfo, 300);
-  if (b.primaryColor !== undefined && /^#[0-9a-f]{6}$/i.test(b.primaryColor)) s.primaryColor = b.primaryColor;
+  if (b.clubName !== undefined) s.clubName = str(b.clubName, 40) || s.clubName;
+  for (const key of ['gateLine1', 'gateLine2', 'footer']) if (b[key] !== undefined) s[key] = str(b[key], 140);
+  if (b.instagram !== undefined) s.instagram = str(b.instagram, 40).replace(/^@+/, '');
+  if (b.minAge !== undefined) s.minAge = Math.max(0, Math.min(99, Math.floor(num(b.minAge)) || 0));
   save();
   res.json({ settings: s });
 });
 
-const IMAGE_TYPES = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp', 'image/gif': 'gif' };
-
-admin.post('/upload', (req, res) => {
-  const match = /^data:(image\/[a-z]+);base64,(.+)$/.exec(String(req.body.dataUrl || ''));
-  const ext = match && IMAGE_TYPES[match[1]];
-  if (!ext) throw new HttpError(400, 'Formato de imagen no soportado (usa PNG, JPG, WEBP o GIF)');
-  const buffer = Buffer.from(match[2], 'base64');
-  if (buffer.length > 4 * 1024 * 1024) throw new HttpError(400, 'La imagen no puede superar 4 MB');
-  const filename = `${Date.now()}-${crypto.randomBytes(4).toString('hex')}.${ext}`;
-  fs.writeFileSync(path.join(UPLOADS_DIR, filename), buffer);
-  res.status(201).json({ url: `/uploads/${filename}` });
-});
-
 app.use('/api/admin', admin);
-
 app.get('/admin', (_req, res) => res.sendFile(path.join(__dirname, 'public', 'admin.html')));
 
 // ---------- Errores ----------
@@ -468,7 +424,7 @@ app.use((err, _req, res, _next) => {
 });
 
 if (require.main === module) {
-  app.listen(PORT, () => console.log(`Tienda funcionando en http://localhost:${PORT}`));
+  app.listen(PORT, () => console.log(`Funcionando en http://localhost:${PORT}`));
 }
 
 module.exports = app;
