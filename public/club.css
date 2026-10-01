@@ -1,25 +1,25 @@
 /*
-  Estética minimalista europea, inspirada en clubes como Hï Ibiza: fondo blanco, tipografía Helvetica
-  grande, apretada y en negrita, líneas finas, mucho aire y botones negros redondeados.
+  Estética minimalista europea, inspirada en clubes como Hï Ibiza: fondo negro, tipografía Helvetica
+  grande, apretada y en negrita, líneas finas, mucho aire y botones blancos redondeados.
   Los nombres de las variables se mantienen (el panel y la puerta las usan): --ink es el fondo y --text la tinta.
 */
 :root {
-  --ink: #ffffff;          /* fondo */
-  --ink-2: #f4f4f2;        /* superficies suaves */
-  --surface: #ffffff;
-  --line: #e1e1de;         /* líneas finas */
-  --line-strong: #0c0c0c;  /* líneas marcadas */
-  --text: #0c0c0c;         /* tinta */
-  --muted: #6a6a67;
-  --faint: #9c9c98;
-  --signal: #0c0c0c;
-  --ok: #15803d;
-  --warn: #b25e00;
-  --bad: #cf2a1d;
+  --ink: #000000;          /* fondo */
+  --ink-2: #111111;        /* superficies suaves */
+  --surface: #000000;
+  --line: #262626;         /* líneas finas */
+  --line-strong: #ffffff;  /* líneas marcadas */
+  --text: #ffffff;         /* tinta */
+  --muted: #9a9a9a;
+  --faint: #5c5c5c;
+  --signal: #ff3b30;       /* avisos que tienen que llamar la atención */
+  --ok: #4ade80;
+  --warn: #fbbf24;
+  --bad: #ff5a4f;
   --font-display: "Helvetica Now Display", "Helvetica Neue", Helvetica, "Inter Tight", Arial, sans-serif;
   --font-body: "Helvetica Now Text", "Helvetica Neue", Helvetica, "Inter Tight", Arial, sans-serif;
   --font-mono: var(--font-body);
-  color-scheme: light;
+  color-scheme: dark;
 }
 
 * { box-sizing: border-box; }
@@ -139,7 +139,7 @@ a { color: var(--text); text-underline-offset: 3px; }
   width: 100%;
   padding: 13px 14px;
   background: var(--surface);
-  border: 1px solid #cfcfcb;
+  border: 1px solid #3a3a3a;
   border-radius: 0;
   outline: none;
   transition: border-color .15s, box-shadow .15s;
@@ -200,7 +200,7 @@ label.lbl, p.lbl {
   text-wrap: balance;
 }
 .event-desc { color: var(--muted); font-size: .95rem; margin: 10px 0 0; }
-.event-data { display: grid; grid-template-columns: repeat(3, 1fr); margin: 0; border-top: 1px solid var(--line); }
+.event-data { display: grid; grid-template-columns: 1fr 1.35fr 1fr; margin: 0; border-top: 1px solid var(--line); }
 .event-data div { padding: 10px 12px 12px 0; min-width: 0; }
 .event-data div + div { padding-left: 12px; border-left: 1px solid var(--line); }
 .event-data dt { font-size: .64rem; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
@@ -209,7 +209,7 @@ label.lbl, p.lbl {
 .picker { display: grid; gap: 8px; }
 .picker label {
   display: flex; gap: 12px; align-items: center;
-  border: 1px solid #cfcfcb; padding: 12px 14px; cursor: pointer;
+  border: 1px solid #3a3a3a; padding: 12px 14px; cursor: pointer;
 }
 .picker label:has(input:checked) { border-color: var(--text); box-shadow: inset 0 0 0 1px var(--text); }
 .picker input { accent-color: var(--text); }
@@ -268,9 +268,9 @@ label.lbl, p.lbl {
 .pay .btn { display: block; text-align: center; text-decoration: none; }
 .transfer { background: var(--ink-2); padding: 14px; display: grid; gap: 8px; }
 .transfer .lbl { margin: 0; }
-.copy-row { display: grid; grid-template-columns: 70px minmax(0, 1fr) auto; gap: 10px; align-items: center; }
+.copy-row { display: grid; grid-template-columns: 54px minmax(0, 1fr) auto; gap: 8px; align-items: center; }
 .copy-label { font-size: .64rem; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
-.copy-value { font-weight: 700; overflow-wrap: anywhere; }
+.copy-value { font-weight: 600; font-size: .92rem; overflow-wrap: anywhere; }
 .copy-btn {
   border: 1px solid var(--text); background: var(--surface); border-radius: 999px; padding: 6px 12px; cursor: pointer;
   font-size: .75rem; font-weight: 600;
@@ -287,10 +287,10 @@ label.lbl, p.lbl {
   40%, 80% { transform: translateX(6px); }
 }
 
-/* Al acertar el código la pantalla se apaga y prende, como las luces del club. */
+/* Al acertar el código, un flash blanco como las luces del club. */
 .strobe {
   position: fixed; inset: 0; z-index: 50; pointer-events: none;
-  background: #000; opacity: 0;
+  background: #fff; opacity: 0;
   animation: strobe .6s steps(1) forwards;
 }
 @keyframes strobe {
@@ -348,7 +348,7 @@ label.lbl, p.lbl {
   position: sticky; bottom: calc(12px + env(safe-area-inset-bottom, 0px)); z-index: 3;
   display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; align-items: center;
   padding: 12px 12px 12px 20px; background: var(--text); color: var(--ink); border-radius: 999px;
-  box-shadow: 0 18px 40px rgba(0, 0, 0, .25);
+  box-shadow: 0 18px 40px rgba(255, 255, 255, .08);
 }
 .order-bar .btn { width: auto; padding: 12px 24px; background: var(--ink); color: var(--text); border-color: var(--ink); }
 .order-bar .btn:hover { background: transparent; color: var(--ink); }
