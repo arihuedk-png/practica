@@ -114,7 +114,7 @@ function eventHtml(ev) {
     </div>
     <dl class="event-data">
       <div><dt>Fecha</dt><dd>${esc(dia)}</dd></div>
-      <div><dt>Puerta</dt><dd>${esc(hora)} h</dd></div>
+      <div><dt>Horario</dt><dd>${esc(hora)} – cierre</dd></div>
       <div><dt>Lugar</dt><dd>A revelar</dd></div>
     </dl>`;
 }

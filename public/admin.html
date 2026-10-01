@@ -4,11 +4,11 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="robots" content="noindex, nofollow">
-  <meta name="theme-color" content="#0b0c0e">
+  <meta name="theme-color" content="#ffffff">
   <title>Panel</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&family=Syne:wght@700;800&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700;800&display=swap">
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="club.css">
   <style>
@@ -16,9 +16,9 @@
     .panel > * { min-width: 0; }
     .seccion { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; }
     .bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-    .bar .logo { font-size: 2rem; margin: 0; flex: 1; min-width: 0; }
+    .bar .logo { font-size: 2.2rem; margin: 0; flex: 1; min-width: 0; }
     .stat b, .tabs button, .chip { font-family: var(--font-mono); }
-    .stat, .item, .card { background: var(--ink-2); }
+    .stat, .item, .card { background: var(--surface); }
     .tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); overflow-x: auto; }
     .tabs button {
       background: none; border: 0; border-bottom: 2px solid transparent; padding: 10px 12px; cursor: pointer;
@@ -39,15 +39,15 @@
     .toolbar .btn { width: auto; }
     .toolbar a.btn { text-decoration: none; }
     .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
-    .stat { border: 1px solid var(--line); border-radius: 8px; padding: 12px; min-width: 0; }
+    .stat { border: 1px solid var(--line); border-top: 2px solid var(--text); padding: 12px; min-width: 0; }
     .stat b { display: block; font-size: 1.5rem; font-weight: 500; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
     .stat span { font-size: .68rem; letter-spacing: .18em; text-transform: uppercase; color: var(--muted); }
     .rows { display: grid; gap: 8px; }
     .item {
       display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px 12px; align-items: center;
-      border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px;
+      border: 1px solid var(--line); padding: 12px 14px;
     }
-    .item.in { border-color: rgba(127, 212, 154, .45); }
+    .item.in { border-color: var(--ok); }
     .item.pedido { align-items: start; }
     .item.pedido.estado-pendiente { border-left: 3px solid var(--warn); }
     .item a { color: var(--text); }
@@ -59,13 +59,13 @@
     .item .lines { margin-top: 10px; }
     .item .lines-total { margin-top: 10px; }
     .chip { font-size: .66rem; letter-spacing: .12em; text-transform: uppercase; border: 1px solid var(--line); border-radius: 999px; padding: 2px 8px; color: var(--muted); white-space: nowrap; }
-    .chip.on, .chip.estado-pagado { color: var(--ok); border-color: rgba(127, 212, 154, .5); }
-    .chip.estado-pendiente { color: var(--warn); border-color: rgba(242, 193, 78, .5); }
+    .chip.on, .chip.estado-pagado { color: var(--ok); border-color: currentColor; }
+    .chip.estado-pendiente { color: var(--warn); border-color: currentColor; }
     .chip.estado-aprobado { color: var(--text); border-color: var(--line-strong); }
     .chip.estado-rechazado { color: var(--faint); }
     .small { width: auto; padding: 8px 12px; font-size: .72rem; }
-    .danger { color: var(--bad); border-color: rgba(255, 138, 128, .4); }
-    .card { border: 1px solid var(--line); border-radius: 10px; padding: 18px; display: grid; gap: 14px; }
+    .danger { color: var(--bad); border-color: currentColor; }
+    .card { border: 1px solid var(--line); border-top: 2px solid var(--text); padding: 18px; display: grid; gap: 14px; }
     .card h2 { margin: 0; font-size: 1rem; font-weight: 600; }
     .card h3 {
       margin: 6px 0 0; padding-top: 14px; border-top: 1px solid var(--line);
