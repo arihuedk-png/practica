@@ -18,7 +18,10 @@ const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || '';
 const PUERTA_PASSWORD = process.env.PUERTA_PASSWORD || '';
 const MP_TOKEN = process.env.MP_ACCESS_TOKEN || '';
 const SECRET = process.env.SESSION_SECRET || config().secreto_sesion;
-const HORAS_ACCESO = 6;
+const HORAS_ACCESO = 6; // si no hay fechas abiertas
+const HORAS_FIESTA = 12; // una fiesta se considera terminada 12 horas después de empezar
+// Las fechas de las fiestas se cargan en hora de Argentina (no tiene horario de verano).
+const ZONA_HORARIA = process.env.UTC_OFFSET || '-03:00';
 const DIAS_CLIENTE = 30;
 const HORAS_ADMIN = 12;
 const ESTADOS = ['pendiente', 'aprobado', 'rechazado', 'pagado'];
@@ -202,8 +205,20 @@ function exigirCliente(req) {
   return cliente;
 }
 
+// El código vale hasta que termina la última fiesta abierta. Si no hay ninguna por delante, 6 horas.
+function vencimientoAcceso() {
+  const fin = all('SELECT fecha FROM eventos WHERE abierto = 1')
+    .map(({ fecha }) => Date.parse(`${fecha}:00${ZONA_HORARIA}`) + HORAS_FIESTA * 3600 * 1000)
+    .filter((t) => t > Date.now())
+    .sort((a, b) => b - a)[0];
+  return fin || Date.now() + HORAS_ACCESO * 3600 * 1000;
+}
+
 function darAcceso(req, res, rrppId) {
-  setCookie(req, res, 'acceso', sign({ rrppId, exp: Date.now() + HORAS_ACCESO * 3600 * 1000 }), HORAS_ACCESO * 3600);
+  const vence = vencimientoAcceso();
+  // "n" hace que cada acceso sea único (los límites por persona se cuentan por acceso).
+  const n = crypto.randomBytes(8).toString('hex');
+  setCookie(req, res, 'acceso', sign({ rrppId, exp: vence, n }), Math.ceil((vence - Date.now()) / 1000));
 }
 
 // Anota al cliente en la lista del RRPP para esa fecha (una sola vez por fecha: gana el primer RRPP).
@@ -910,7 +925,7 @@ function exigirPuerta(req) {
 
 // La fecha que se muestra por defecto: la próxima (o la de esta noche, hasta 12 horas después de empezar).
 function eventoDeLaNoche(eventos) {
-  const d = new Date(Date.now() - 12 * 3600 * 1000);
+  const d = new Date(Date.now() - HORAS_FIESTA * 3600 * 1000);
   const p = (n) => String(n).padStart(2, '0');
   const limite = `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
   return eventos.find((e) => e.fecha >= limite) || eventos[eventos.length - 1];

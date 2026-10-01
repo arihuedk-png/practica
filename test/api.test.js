@@ -458,3 +458,28 @@ test('puerta: con su propia contraseña ve solo los pagados de la noche y marca 
   assert.equal((await admin('/api/puerta')).status, 200);
   assert.equal((await navegador('10.7.7.8')('/api/puerta/login', { method: 'POST', body: { password: 'clave-del-panel' } })).status, 200);
 });
+
+test('el código vale hasta que termina la fiesta (12 horas después de empezar)', async () => {
+  const maxAge = async () => {
+    const r = await fetch(`${base}/api/acceso`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Forwarded-For': '10.8.8.8' },
+      body: JSON.stringify({ codigo: 'lunallena' }),
+    });
+    return Number(/Max-Age=(\d+)/.exec(r.headers.getSetCookie().find((c) => c.startsWith('acceso=')))[1]);
+  };
+  const { eventos } = (await admin('/api/admin/eventos')).body;
+  const original = eventos.find((e) => e.id === 1);
+  for (const e of eventos) if (e.id !== 1) await admin(`/api/admin/eventos/${e.id}`, { method: 'PUT', body: { abierto: false } });
+
+  // Fiesta dentro de 3 días a las 23:30 (hora argentina): el acceso dura hasta el día siguiente a las 11:30.
+  const dia = new Date(Date.now() + 3 * 86400 * 1000).toISOString().slice(0, 10);
+  await admin('/api/admin/eventos/1', { method: 'PUT', body: { fecha: `${dia}T23:30`, abierto: true } });
+  const esperado = (Date.parse(`${dia}T23:30:00-03:00`) + 12 * 3600 * 1000 - Date.now()) / 1000;
+  assert.ok(Math.abs((await maxAge()) - esperado) < 5, 'vence 12 horas después de que empieza la fiesta');
+
+  // Sin fechas abiertas, vuelve a las 6 horas.
+  await admin('/api/admin/eventos/1', { method: 'PUT', body: { abierto: false } });
+  assert.equal(await maxAge(), 6 * 3600);
+  await admin('/api/admin/eventos/1', { method: 'PUT', body: { fecha: original.fecha, abierto: true } });
+});

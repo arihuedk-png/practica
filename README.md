@@ -9,6 +9,8 @@ El dueño lo aprueba y recién ahí el cliente paga.
 **Para el cliente**
 
 1. **Puerta:** escribe el código de un RRPP. Si en Ajustes activás "No tengo código", también puede entrar sin RRPP.
+   El código vale **hasta que termina la fiesta** (12 horas después de la hora de inicio de la última fecha abierta);
+   después lo tiene que volver a escribir. Sus pedidos los puede ver siempre, sin código.
 2. **Registro obligatorio:** nombre y apellido, Instagram, cumpleaños, teléfono con código de país (+54) y la
    casilla de consentimiento sobre el uso de sus datos. Si falta algo o está mal escrito, no avanza.
    Queda anotado en la lista del RRPP cuyo código usó, para esa fecha.
