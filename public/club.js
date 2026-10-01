@@ -529,10 +529,13 @@ async function init() {
     return abrirPedidos();
   }
 
-  // Si vuelve con un pedido esperando aprobación o pago, primero ve cómo va.
+  // Si vuelve con un pedido esperando aprobación o pago, o con una entrada pagada para una fiesta
+  // que todavía no terminó (12 horas después de empezar), lo primero que ve es eso.
   if (pedidosGuardados().length) {
     const pedidos = await cargarPedidos();
-    if (pedidos.some((p) => p.estado === 'pendiente' || p.estado === 'aprobado')) return abrirPedidos('', pedidos);
+    const vigente = (p) => parseLocal(p.evento.fecha).getTime() + 12 * 3600 * 1000 > Date.now();
+    const importante = (p) => p.estado === 'pendiente' || p.estado === 'aprobado' || (p.estado === 'pagado' && vigente(p));
+    if (pedidos.some(importante)) return abrirPedidos('', pedidos);
   }
 
   try {
